@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { clearAdminSession, isAdminSession } from "@/lib/admin-auth"
-import { clearUserSession, getUserSession } from "@/lib/custom-auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -49,27 +48,27 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
   const handleLogout = async () => {
     setIsLoggingOut(true)
 
-    // Nettoyer la session admin si elle existe
     if (isAdminSession()) {
       clearAdminSession()
+      router.push("/auth/login")
+      router.refresh()
+      return
     }
 
-    // Nettoyer la session custom auth si elle existe
-    if (getUserSession()) {
-      clearUserSession()
-    }
+    const supabase = createClient()
+    const { error } = await supabase.auth.signOut()
 
-    // Essayer aussi de déconnecter de Supabase Auth (au cas où)
-    try {
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    } catch (e) {
-      // Ignorer les erreurs Supabase, on a déjà nettoyé les sessions
-      console.log("[v0] Supabase signOut error (ignoré):", e)
+    if (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de se déconnecter",
+        variant: "destructive",
+      })
+      setIsLoggingOut(false)
+    } else {
+      router.push("/auth/login")
+      router.refresh()
     }
-
-    router.push("/auth/login")
-    router.refresh()
   }
 
   const openSettings = async () => {
