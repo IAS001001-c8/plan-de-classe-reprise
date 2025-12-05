@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { getAdminSession } from "@/lib/admin-auth"
 
 // Clé de session unifiée (doit correspondre à custom-auth.ts)
 const SESSION_KEY = "user_session"
@@ -15,7 +16,7 @@ export interface AuthUser {
   firstName?: string
   lastName?: string
   email?: string
-  authType: "custom" | "supabase"
+  authType: "custom" | "admin" | "supabase"
 }
 
 interface UseAuthOptions {
@@ -25,7 +26,7 @@ interface UseAuthOptions {
 
 /**
  * Hook d'authentification principal
- * Vérifie dans l'ordre : session custom, session Supabase
+ * Vérifie dans l'ordre : session custom, session admin, session Supabase
  */
 export function useAuth(options?: UseAuthOptions) {
   const router = useRouter()
@@ -48,7 +49,20 @@ export function useAuth(options?: UseAuthOptions) {
       return
     }
 
-    // 2. Vérifier la session Supabase native (fallback)
+    // 2. Vérifier la session admin
+    const adminUser = await checkAdminSession()
+    if (adminUser) {
+      if (options?.requireRole && adminUser.role !== options.requireRole) {
+        router.push(options.redirectTo || "/dashboard")
+        setIsLoading(false)
+        return
+      }
+      setUser(adminUser)
+      setIsLoading(false)
+      return
+    }
+
+    // 3. Vérifier la session Supabase native
     const supabaseUser = await checkSupabaseSession()
     if (supabaseUser) {
       if (options?.requireRole && supabaseUser.role !== options.requireRole) {
@@ -61,7 +75,7 @@ export function useAuth(options?: UseAuthOptions) {
       return
     }
 
-    // 3. Aucune authentification trouvée
+    // 4. Aucune authentification trouvée
     setIsLoading(false)
     router.push(options?.redirectTo || "/auth/login")
   }, [router, options?.requireRole, options?.redirectTo])
@@ -128,6 +142,35 @@ async function checkCustomSession(): Promise<AuthUser | null> {
 }
 
 /**
+ * Vérifie la session admin (codes hardcodés)
+ */
+async function checkAdminSession(): Promise<AuthUser | null> {
+  try {
+    const adminSession = getAdminSession()
+    if (!adminSession) return null
+
+    // Récupérer l'ID de l'établissement depuis Supabase
+    const supabase = createClient()
+    const { data: establishment } = await supabase
+      .from("establishments")
+      .select("id")
+      .eq("code", adminSession.code)
+      .single()
+
+    return {
+      id: `admin-${adminSession.code}`,
+      establishmentId: establishment?.id || "mock-establishment-id",
+      role: "vie-scolaire", // Les admins ont toujours le rôle vie-scolaire
+      username: adminSession.code,
+      authType: "admin",
+    }
+  } catch (error) {
+    console.error("Error checking admin session:", error)
+    return null
+  }
+}
+
+/**
  * Vérifie la session Supabase native
  */
 async function checkSupabaseSession(): Promise<AuthUser | null> {
@@ -155,7 +198,8 @@ async function checkSupabaseSession(): Promise<AuthUser | null> {
       email: profile.email,
       authType: "supabase",
     }
-  } catch {
+  } catch (error) {
+    console.error("Error checking Supabase session:", error)
     return null
   }
 }
@@ -175,10 +219,9 @@ function getCookieValue(name: string): string | null {
 function clearInvalidSession(): void {
   localStorage.removeItem(SESSION_KEY)
   document.cookie = `${SESSION_KEY}=; path=/; max-age=0`
-  // Nettoyer les anciennes clés (migration)
+  // Nettoyer aussi l'ancienne clé (migration)
   localStorage.removeItem("custom_auth_user")
   document.cookie = "custom_auth_user=; path=/; max-age=0"
-  document.cookie = "admin_session=; path=/; max-age=0"
 }
 
 /**
@@ -191,11 +234,13 @@ export function useLogout() {
     // Supprimer session custom
     localStorage.removeItem(SESSION_KEY)
     document.cookie = `${SESSION_KEY}=; path=/; max-age=0`
-
+    
+    // Supprimer session admin
+    document.cookie = "admin_session=; path=/; max-age=0"
+    
     // Nettoyer anciennes clés (migration)
     localStorage.removeItem("custom_auth_user")
     document.cookie = "custom_auth_user=; path=/; max-age=0"
-    document.cookie = "admin_session=; path=/; max-age=0"
 
     // Déconnecter Supabase si connecté
     try {
