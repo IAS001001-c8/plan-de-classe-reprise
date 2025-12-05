@@ -24,41 +24,29 @@ export default function LoginPage() {
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("[v0] Admin login form submitted")
-    console.log("[v0] Admin code entered:", adminCode)
-
     setIsLoading(true)
     setError(null)
 
     if (!adminCode) {
-      console.log("[v0] No admin code provided")
       setError("Code administrateur requis")
       setIsLoading(false)
       return
     }
 
     try {
-      console.log("[v0] Validating admin code...")
       // Validate admin code from hardcoded list
       const adminCreds = validateAdminCode(adminCode)
-      console.log("[v0] Admin credentials:", adminCreds)
 
       if (!adminCreds) {
-        console.log("[v0] Invalid admin code")
         throw new Error("Code administrateur invalide")
       }
 
-      console.log("[v0] Setting admin session...")
       // Store admin session in localStorage (independent of Supabase)
       setAdminSession(adminCreds)
-      console.log("[v0] Admin session set successfully")
 
-      console.log("[v0] Redirecting to dashboard...")
       // Redirect to dashboard
       router.push("/dashboard")
-      console.log("[v0] Router.push called")
     } catch (error: unknown) {
-      console.log("[v0] Error during admin login:", error)
       setError(error instanceof Error ? error.message : "Code administrateur invalide")
     } finally {
       setIsLoading(false)
@@ -70,45 +58,27 @@ export default function LoginPage() {
     setIsLoading(true)
     setError(null)
 
-    console.log("[v0] Login form submitted")
-
     if (!establishmentCode || !role || !username || !password) {
-      console.log("[v0] Missing required fields")
       setError("Une des données est incorrecte")
       setIsLoading(false)
       return
     }
 
     try {
-      console.log("[v0] Calling authenticateUser...")
       const { user, error: authError } = await authenticateUser(establishmentCode, role, username, password)
 
-      console.log("[v0] Authentication result:", { user, authError })
-
       if (authError || !user) {
-        console.log("[v0] Authentication failed:", authError)
         throw new Error(authError || "Une des données est incorrecte")
       }
-
-      console.log("[v0] Authentication successful! User:", user)
-      console.log("[v0] Calling setUserSession...")
 
       // Store user session
       setUserSession(user)
 
-      console.log("[v0] Session stored, checking localStorage...")
-      const storedSession = localStorage.getItem("custom_auth_user")
-      console.log("[v0] Stored session:", storedSession)
-
-      console.log("[v0] Redirecting to dashboard...")
       // Redirect to dashboard
       router.push("/dashboard")
-      console.log("[v0] router.push called")
     } catch (error: unknown) {
-      console.log("[v0] Error caught in handleLogin:", error)
       setError(error instanceof Error ? error.message : "Une des données est incorrecte")
     } finally {
-      console.log("[v0] Setting isLoading to false")
       setIsLoading(false)
     }
   }
@@ -152,7 +122,6 @@ export default function LoginPage() {
                   variant="ghost"
                   className="w-full"
                   onClick={() => {
-                    console.log("[v0] Switching back to normal login")
                     setIsAdminMode(false)
                     setError(null)
                     setAdminCode("")
@@ -224,7 +193,6 @@ export default function LoginPage() {
                   variant="outline"
                   className="w-full bg-transparent"
                   onClick={() => {
-                    console.log("[v0] Switching to admin mode")
                     setIsAdminMode(true)
                     setError(null)
                   }}
