@@ -11,6 +11,7 @@ export interface CreateUserParams {
   password?: string
   // Pour les élèves
   class_id?: string
+  class_name?: string // Added class_name parameter
   student_role?: "delegue" | "eco-delegue" | null
   // Pour les professeurs
   subject?: string
@@ -67,11 +68,10 @@ function generateUsernameWithClass(firstName: string, lastName: string, classNam
 
   let username = `${normalizedLastName}.${normalizedFirstName}`
 
-  // Ajouter la classe si fournie (format 6A au lieu de 6èmeA)
   if (className) {
     const normalizedClass = className
-      .replace(/ème|eme|ère|ere/gi, "")
-      .replace(/\s+/g, "")
+      .replace(/ème|eme|ère|ere/gi, "") // Remove "ème", "ère" suffixes
+      .replace(/\s+/g, "") // Remove spaces
       .toUpperCase()
     username += `.${normalizedClass}`
   }
@@ -87,8 +87,8 @@ export async function createUser(params: CreateUserParams): Promise<UserCredenti
 
   console.log("[v0] Creating user with params:", params)
 
-  let className: string | undefined = undefined
-  if (params.class_id) {
+  let className: string | undefined = params.class_name
+  if (!className && params.class_id) {
     const { data: classData } = await supabase.from("classes").select("name").eq("id", params.class_id).single()
 
     if (classData) {

@@ -506,7 +506,7 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
   const handleUpdateCredentials = async () => {
     if (!selectedTeacher) return
 
-    if (!selectedTeacher.profile_id) {
+    if (!selectedTeacher.profile_id || selectedTeacher.profile_id === "null") {
       toast({
         title: "Erreur",
         description: "Ce professeur n'a pas de profil utilisateur",
@@ -573,7 +573,7 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
       description: "Identifiants mis à jour avec succès",
     })
     setIsAccessDialogOpen(false)
-    fetchData() // Rafraîchir les données après la mise à jour
+    fetchData() // Refresh data to show updated credentials
   }
 
   const handleSendEmail = () => {

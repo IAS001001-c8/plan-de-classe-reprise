@@ -599,11 +599,12 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
     setIsAccessDialogOpen(false)
   }
 
+  // START OF MODIFIED FUNCTIONS
   async function handlePromoteStudent(student: Student, newRole: "delegue" | "eco-delegue") {
     try {
       console.log("[v0] Promoting student:", student.id, "to role:", newRole)
 
-      if (student.profile_id) {
+      if (student.profile_id && student.profile_id !== "null") {
         toast({
           title: "Erreur",
           description: "Cet élève a déjà un profil utilisateur",
@@ -611,6 +612,9 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
         })
         return
       }
+
+      const supabase = createClient()
+      const { data: classData } = await supabase.from("classes").select("name").eq("id", student.class_id).single()
 
       const credentials = await createUser({
         establishment_id: establishmentId,
@@ -620,12 +624,11 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
         email: student.email || undefined,
         phone: student.phone || undefined,
         class_id: student.class_id || undefined,
+        class_name: classData?.name, // Pass class_name for proper username format
         student_role: newRole,
       })
 
       console.log("[v0] User created successfully:", credentials)
-
-      const supabase = createClient()
 
       const { error: updateError } = await supabase
         .from("students")
@@ -745,7 +748,7 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
   async function handleUpdateCredentials() {
     if (!selectedStudent) return
 
-    if (!selectedStudent.profile_id) {
+    if (!selectedStudent.profile_id || selectedStudent.profile_id === "null") {
       toast({
         title: "Erreur",
         description: "Cet élève n'a pas de profil utilisateur",
@@ -812,9 +815,11 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
       title: "Succès",
       description: "Identifiants mis à jour avec succès",
     })
+
     setIsAccessDialogOpen(false)
-    fetchData() // Refresh data after credential update
+    fetchData() // Refresh data to show updated credentials
   }
+  // END OF MODIFIED FUNCTIONS
 
   const filteredStudents = students.filter((s) => {
     // Filter by selected classes
