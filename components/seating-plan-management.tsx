@@ -55,11 +55,11 @@ interface SubRoom {
   teachers: { first_name: string; last_name: string }
   sub_room_classes: {
     class_id: string
-    classes: { id: string; name: string; students: { id: string; first_name: string; last_name: string }[] }[]
-  }
+    classes: { id: string; name: string }
+  }[]
   sub_room_teachers: {
     teacher_id: string
-    teachers: { id: string; first_name: string; last_name: string; subject: string }[]
+    teachers: { id: string; first_name: string; last_name: string; subject: string }
   }[]
 }
 
@@ -166,8 +166,7 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
           class_id,
           classes(
             id,
-            name,
-            students(id, first_name, last_name)
+            name
           )
         ),
         sub_room_teachers(
@@ -183,8 +182,15 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
       subRoomsQuery = subRoomsQuery.eq("created_by", userId)
     }
 
-    const { data: subRoomsData } = await subRoomsQuery.order("created_at", { ascending: false })
-    console.log("[v0] Fetched sub-rooms with full data:", subRoomsData)
+    const { data: subRoomsData, error } = await subRoomsQuery.order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("[v0] Error fetching sub-rooms:", error)
+      return
+    }
+
+    console.log("[v0] Fetched sub-rooms:", subRoomsData)
+
     if (subRoomsData) setSubRooms(subRoomsData)
 
     await setAvailableOptions(supabase)
@@ -319,11 +325,7 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
         teachers(first_name, last_name),
         sub_room_classes(
           class_id,
-          classes(
-            id,
-            name,
-            students(id, first_name, last_name)
-          )
+          classes(id, name)
         ),
         sub_room_teachers(
           teacher_id,
@@ -338,9 +340,14 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
       subRoomsQuery = subRoomsQuery.eq("created_by", userId)
     }
 
-    const { data: subRoomsData } = await subRoomsQuery.order("created_at", { ascending: false })
+    const { data: subRoomsData, error } = await subRoomsQuery.order("created_at", { ascending: false })
 
-    console.log("[v0] Fetched sub-rooms with full data:", subRoomsData)
+    if (error) {
+      console.error("[v0] Error fetching sub-rooms:", error)
+      return
+    }
+
+    console.log("[v0] Fetched sub-rooms:", subRoomsData)
 
     if (subRoomsData) setSubRooms(subRoomsData)
   }
@@ -540,7 +547,9 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
               <CardContent className="p-6">
                 <div className="space-y-3">
                   <div className="flex items-start justify-between">
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">{subRoom.name}</h3>
+                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                      {subRoom.custom_name || subRoom.name}
+                    </h3>
                   </div>
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
@@ -553,8 +562,24 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
                       <Users className="h-4 w-4" />
                       <span>
                         {subRoom.teachers.first_name} {subRoom.teachers.last_name}
+                        {subRoom.sub_room_teachers && subRoom.sub_room_teachers.length > 0 && (
+                          <span className="ml-1 text-xs">
+                            (+ {subRoom.sub_room_teachers.length} prof{subRoom.sub_room_teachers.length > 1 ? "s" : ""})
+                          </span>
+                        )}
                       </span>
                     </div>
+                    {subRoom.sub_room_classes && subRoom.sub_room_classes.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4" />
+                        <span>
+                          {subRoom.sub_room_classes
+                            .map((src) => src.classes?.name)
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <Button
                     variant="outline"
