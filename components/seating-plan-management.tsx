@@ -457,46 +457,6 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
     )
   }
 
-  const handleDeleteSubRoom = async (subRoomId: string) => {
-    try {
-      const supabase = createClient()
-
-      // Delete seating assignments first
-      const { error: assignmentsError } = await supabase
-        .from("seating_assignments")
-        .delete()
-        .eq("sub_room_id", subRoomId)
-
-      if (assignmentsError) {
-        console.error("[v0] Error deleting assignments:", assignmentsError)
-        throw assignmentsError
-      }
-
-      // Delete sub-rooms
-      const { error: subRoomError } = await supabase.from("sub_rooms").delete().eq("id", subRoomId)
-
-      if (subRoomError) {
-        console.error("[v0] Error deleting sub-rooms:", subRoomError)
-        throw subRoomError
-      }
-
-      toast({
-        title: "Succès",
-        description: `La sous-salle a été supprimée avec succès`,
-      })
-
-      // Refresh
-      await fetchData()
-    } catch (error) {
-      console.error("[v0] Error deleting sub-room:", error)
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer la sous-salle",
-        variant: "destructive",
-      })
-    }
-  }
-
   const isVieScolaire = userRole === "vie-scolaire"
   const canCreateSubRooms =
     isVieScolaire || userRole === "professeur" || userRole === "delegue" || userRole === "eco-delegue"

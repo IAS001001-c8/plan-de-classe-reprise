@@ -525,11 +525,15 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
 
   const getSeatNumber = (colIndex: number, tableIndex: number, seatIndex: number) => {
     if (!room) return 0
-    let seatNumber = 1
+    let seatNumber = 0
+    // Count all seats in previous columns
     for (let i = 0; i < colIndex; i++) {
       seatNumber += room.config.columns[i].tables * room.config.columns[i].seatsPerTable
     }
-    seatNumber += tableIndex * room.config.columns[colIndex].seatsPerTable + seatIndex + 1
+    // Count all seats in previous tables of current column
+    seatNumber += tableIndex * room.config.columns[colIndex].seatsPerTable
+    // Add current seat index (+1 to start at 1)
+    seatNumber += seatIndex + 1
     return seatNumber
   }
 
@@ -716,8 +720,11 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                         {Array.from({ length: column.tables }).map((_, tableIndex) => (
                           <div
                             key={tableIndex}
-                            className={`relative ${getResponsiveTableSize()} rounded-lg border-2 flex items-center justify-center p-2`}
-                            style={getTableStyle()}
+                            className={`relative ${getResponsiveTableSize()} rounded-lg border-2 bg-white dark:bg-gray-800`}
+                            style={{
+                              borderColor: "#8B7355",
+                              minHeight: "fit-content",
+                            }}
                             onDragOver={handleDragOver}
                             onDrop={(e) => {
                               const seatNumber = getSeatNumber(colIndex, tableIndex, 0)
@@ -725,7 +732,19 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                             }}
                           >
                             <div
-                              className={`grid ${column.seatsPerTable === 1 ? "grid-cols-1" : "grid-cols-2"} gap-2 place-items-center w-full h-full`}
+                              className={`grid ${
+                                column.seatsPerTable === 1
+                                  ? "grid-cols-1"
+                                  : column.seatsPerTable === 2
+                                    ? "grid-cols-2"
+                                    : column.seatsPerTable === 3
+                                      ? "grid-cols-3"
+                                      : column.seatsPerTable === 4
+                                        ? "grid-cols-2"
+                                        : column.seatsPerTable === 6
+                                          ? "grid-cols-3"
+                                          : "grid-cols-2"
+                              } gap-2 p-3 place-items-center w-full`}
                             >
                               {Array.from({ length: column.seatsPerTable }).map((_, seatIndex) => {
                                 const seatNumber = getSeatNumber(colIndex, tableIndex, seatIndex)
@@ -738,7 +757,11 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                                     key={seatIndex}
                                     data-seat-number={seatNumber}
                                     className={`${getResponsiveSeatSize()} rounded border-2 flex items-center justify-center text-xs font-medium cursor-pointer transition-all hover:scale-105 relative group`}
-                                    style={getSeatStyle(isOccupied)}
+                                    style={{
+                                      backgroundColor: isOccupied ? "#000000" : "#E5E7EB",
+                                      borderColor: isOccupied ? "#000000" : "#D1D5DB",
+                                      color: isOccupied ? "#FFFFFF" : "#9CA3AF",
+                                    }}
                                     onDragOver={handleDragOver}
                                     onDrop={(e) => handleDrop(seatNumber)}
                                     draggable={isOccupied}
