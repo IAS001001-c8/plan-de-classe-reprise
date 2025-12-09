@@ -126,6 +126,8 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
   const fetchData = async () => {
     const supabase = createClient()
 
+    console.log("[v0] fetchData called with:", { userRole, userId, establishmentId })
+
     // Fetch classes
     const { data: classesData, error: classesError } = await supabase
       .from("classes")
@@ -140,120 +142,124 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
 
     let teachersResult
 
-    if (userRole === "professeur") {
-      const { data: teacherData, error: teacherError } = await supabase
-        .from("teachers")
-        .select("id")
-        .eq("profile_id", userId)
-        .maybeSingle()
-
-      if (teacherError) {
-        console.error("[v0] Error fetching teacher record:", teacherError)
-        setTeachers([])
-        return
-      }
-
-      if (!teacherData) {
-        console.log("[v0] No teacher record found for profile_id:", userId)
-        setTeachers([])
-        return
-      }
-
-      // Get the teacher's classes
-      const { data: teacherClasses, error: teacherClassesError } = await supabase
-        .from("teacher_classes")
-        .select("class_id")
-        .eq("teacher_id", teacherData.id)
-
-      if (teacherClassesError) {
-        console.error("[v0] Error fetching teacher classes:", teacherClassesError)
-        setTeachers([])
-        return
-      }
-
-      const classIds = teacherClasses?.map((tc) => tc.class_id) || []
-
-      if (classIds.length === 0) {
-        setTeachers([])
-        return
-      }
-
-      // Now fetch teachers who teach those same classes
-      const { data: otherTeacherClasses, error: otherTeachersError } = await supabase
-        .from("teacher_classes")
-        .select("teacher_id")
-        .in("class_id", classIds)
-
-      if (otherTeachersError) {
-        console.error("[v0] Error fetching other teachers:", otherTeachersError)
-        setTeachers([])
-        return
-      }
-
-      const teacherIds = [...new Set(otherTeacherClasses?.map((tc) => tc.teacher_id) || [])]
-
-      // Fetch teacher details
+    if (userRole === "vie-scolaire") {
+      console.log("[v0] Fetching all teachers for vie-scolaire")
       teachersResult = await supabase
         .from("teachers")
         .select("*")
         .eq("establishment_id", establishmentId)
-        .in("id", teacherIds)
+        .eq("is_deleted", false)
         .order("last_name")
+    } else if (userRole === "professeur") {
+      console.log("[v0] Fetching colleagues for professor")
+      const { data: teacherData } = await supabase.from("teachers").select("id").eq("profile_id", userId).maybeSingle()
+
+      if (teacherData) {
+        // Get classes taught by this teacher
+        const { data: teacherClasses } = await supabase
+          .from("teacher_classes")
+          .select("class_id")
+          .eq("teacher_id", teacherData.id)
+
+        const classIds = teacherClasses?.map((tc) => tc.class_id) || []
+
+        console.log("[v0] Teacher classes:", classIds)
+
+        if (classIds.length > 0) {
+          // Get all teachers who teach at least one of these classes
+          const { data: colleagueClasses } = await supabase
+            .from("teacher_classes")
+            .select("teacher_id")
+            .in("class_id", classIds)
+
+          const teacherIds = [...new Set(colleagueClasses?.map((tc) => tc.teacher_id) || [])]
+
+          console.log("[v0] Colleague teacher IDs:", teacherIds)
+
+          teachersResult = await supabase
+            .from("teachers")
+            .select("*")
+            .eq("establishment_id", establishmentId)
+            .in("id", teacherIds)
+            .eq("is_deleted", false)
+            .order("last_name")
+        } else {
+          console.log("[v0] Professor has no classes, showing all teachers")
+          teachersResult = await supabase
+            .from("teachers")
+            .select("*")
+            .eq("establishment_id", establishmentId)
+            .eq("is_deleted", false)
+            .order("last_name")
+        }
+      } else {
+        console.log("[v0] No teacher record found, showing all teachers")
+        teachersResult = await supabase
+          .from("teachers")
+          .select("*")
+          .eq("establishment_id", establishmentId)
+          .eq("is_deleted", false)
+          .order("last_name")
+      }
     } else if (userRole === "delegue" || userRole === "eco-delegue") {
-      const { data: studentData, error: studentError } = await supabase
+      console.log("[v0] Fetching teachers for delegate")
+      const { data: studentData } = await supabase
         .from("students")
         .select("class_id")
         .eq("profile_id", userId)
         .maybeSingle()
 
-      if (studentError) {
-        console.error("[v0] Error fetching student record:", studentError)
-        setTeachers([])
-        return
+      console.log("[v0] Delegate student data:", studentData)
+
+      if (studentData?.class_id) {
+        // Get teachers for this class
+        const { data: classTeachers } = await supabase
+          .from("teacher_classes")
+          .select("teacher_id")
+          .eq("class_id", studentData.class_id)
+
+        const teacherIds = classTeachers?.map((tc) => tc.teacher_id) || []
+
+        console.log("[v0] Class teacher IDs:", teacherIds)
+
+        if (teacherIds.length > 0) {
+          teachersResult = await supabase
+            .from("teachers")
+            .select("*")
+            .eq("establishment_id", establishmentId)
+            .in("id", teacherIds)
+            .eq("is_deleted", false)
+            .order("last_name")
+        } else {
+          console.log("[v0] No teacher_classes found, showing all teachers")
+          teachersResult = await supabase
+            .from("teachers")
+            .select("*")
+            .eq("establishment_id", establishmentId)
+            .eq("is_deleted", false)
+            .order("last_name")
+        }
+      } else {
+        console.log("[v0] No student record found, showing all teachers")
+        teachersResult = await supabase
+          .from("teachers")
+          .select("*")
+          .eq("establishment_id", establishmentId)
+          .eq("is_deleted", false)
+          .order("last_name")
       }
-
-      if (!studentData?.class_id) {
-        console.log("[v0] No student record found for profile_id:", userId)
-        setTeachers([])
-        return
-      }
-
-      // Get teachers for that class
-      const { data: classTeachers, error: classTeachersError } = await supabase
-        .from("teacher_classes")
-        .select("teacher_id")
-        .eq("class_id", studentData.class_id)
-
-      if (classTeachersError) {
-        console.error("[v0] Error fetching class teachers:", classTeachersError)
-        setTeachers([])
-        return
-      }
-
-      const teacherIds = classTeachers?.map((tc) => tc.teacher_id) || []
-
-      if (teacherIds.length === 0) {
-        setTeachers([])
-        return
-      }
-
-      // Fetch teacher details
-      teachersResult = await supabase
-        .from("teachers")
-        .select("*")
-        .eq("establishment_id", establishmentId)
-        .in("id", teacherIds)
-        .order("last_name")
     } else {
-      // Vie-scolaire: fetch all teachers
+      console.log("[v0] Default: showing all teachers")
       teachersResult = await supabase
         .from("teachers")
         .select("*")
         .eq("establishment_id", establishmentId)
+        .eq("is_deleted", false)
         .order("last_name")
     }
 
     if (teachersResult && !teachersResult.error) {
+      console.log("[v0] Teachers loaded:", teachersResult.data?.length)
       setTeachers(teachersResult.data || [])
     } else {
       console.error("[v0] Error fetching teachers:", teachersResult?.error)

@@ -44,6 +44,7 @@ interface Student {
   password_hash?: string
   profile_id?: string | null // Made nullable for "élève" role
   class_name?: string // Added class_name to Student interface
+  is_deleted?: boolean // Added is_deleted field
 }
 
 interface StudentsManagementProps {
@@ -153,6 +154,8 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
   async function fetchData() {
     setLoading(true)
 
+    console.log("[v0] Students fetchData called with:", { userRole, userId, establishmentId })
+
     const classesResult = await supabase
       .from("classes")
       .select("id, name")
@@ -168,49 +171,8 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
 
     let studentsResult
 
-    if (userRole === "professeur") {
-      const { data: teacherData, error: teacherError } = await supabase
-        .from("teachers")
-        .select("id")
-        .eq("profile_id", userId)
-        .maybeSingle()
-
-      if (teacherError) {
-        console.error("[v0] Error fetching teacher record:", teacherError)
-        setStudents([])
-        setLoading(false)
-        return
-      }
-
-      if (!teacherData) {
-        console.log("[v0] No teacher record found for profile_id:", userId)
-        setStudents([])
-        setLoading(false)
-        return
-      }
-
-      // Then get the class IDs for this teacher
-      const { data: teacherClasses, error: teacherClassesError } = await supabase
-        .from("teacher_classes")
-        .select("class_id")
-        .eq("teacher_id", teacherData.id)
-
-      if (teacherClassesError) {
-        console.error("[v0] Error fetching teacher classes:", teacherClassesError)
-        setStudents([])
-        setLoading(false)
-        return
-      }
-
-      const classIds = teacherClasses?.map((tc) => tc.class_id) || []
-
-      if (classIds.length === 0) {
-        setStudents([])
-        setLoading(false)
-        return
-      }
-
-      // Now fetch students from those classes
+    if (userRole === "vie-scolaire") {
+      console.log("[v0] Fetching all students for vie-scolaire")
       studentsResult = await supabase
         .from("students")
         .select(`
@@ -218,41 +180,97 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
           classes:class_id(name)
         `)
         .eq("establishment_id", establishmentId)
-        .in("class_id", classIds)
+        .eq("is_deleted", false)
         .order("last_name")
+    } else if (userRole === "professeur") {
+      console.log("[v0] Fetching students for professor")
+      const { data: teacherData } = await supabase.from("teachers").select("id").eq("profile_id", userId).maybeSingle()
+
+      console.log("[v0] Professor teacher data:", teacherData)
+
+      if (teacherData) {
+        // Get classes taught by this teacher
+        const { data: teacherClasses } = await supabase
+          .from("teacher_classes")
+          .select("class_id")
+          .eq("teacher_id", teacherData.id)
+
+        const classIds = teacherClasses?.map((tc) => tc.class_id) || []
+
+        console.log("[v0] Professor class IDs:", classIds)
+
+        if (classIds.length > 0) {
+          // Fetch students from those classes
+          studentsResult = await supabase
+            .from("students")
+            .select(`
+              *,
+              classes:class_id(name)
+            `)
+            .eq("establishment_id", establishmentId)
+            .in("class_id", classIds)
+            .eq("is_deleted", false)
+            .order("last_name")
+        } else {
+          console.log("[v0] Professor has no classes, showing all students")
+          studentsResult = await supabase
+            .from("students")
+            .select(`
+              *,
+              classes:class_id(name)
+            `)
+            .eq("establishment_id", establishmentId)
+            .eq("is_deleted", false)
+            .order("last_name")
+        }
+      } else {
+        console.log("[v0] No teacher record found, showing all students")
+        studentsResult = await supabase
+          .from("students")
+          .select(`
+            *,
+            classes:class_id(name)
+          `)
+          .eq("establishment_id", establishmentId)
+          .eq("is_deleted", false)
+          .order("last_name")
+      }
     } else if (userRole === "delegue" || userRole === "eco-delegue") {
-      const { data: studentData, error: studentError } = await supabase
+      console.log("[v0] Fetching classmates for delegate")
+      const { data: studentData } = await supabase
         .from("students")
         .select("class_id")
         .eq("profile_id", userId)
         .maybeSingle()
 
-      if (studentError) {
-        console.error("[v0] Error fetching student record:", studentError)
-        setStudents([])
-        setLoading(false)
-        return
-      }
+      console.log("[v0] Delegate student data:", studentData)
 
-      if (!studentData?.class_id) {
-        console.log("[v0] No student record found for profile_id:", userId)
-        setStudents([])
-        setLoading(false)
-        return
+      if (studentData?.class_id) {
+        // Fetch all students from that class
+        studentsResult = await supabase
+          .from("students")
+          .select(`
+            *,
+            classes:class_id(name)
+          `)
+          .eq("establishment_id", establishmentId)
+          .eq("class_id", studentData.class_id)
+          .eq("is_deleted", false)
+          .order("last_name")
+      } else {
+        console.log("[v0] No student record found, showing all students")
+        studentsResult = await supabase
+          .from("students")
+          .select(`
+            *,
+            classes:class_id(name)
+          `)
+          .eq("establishment_id", establishmentId)
+          .eq("is_deleted", false)
+          .order("last_name")
       }
-
-      // Now fetch all students from that class
-      studentsResult = await supabase
-        .from("students")
-        .select(`
-          *,
-          classes:class_id(name)
-        `)
-        .eq("establishment_id", establishmentId)
-        .eq("class_id", studentData.class_id)
-        .order("last_name")
     } else {
-      // Vie-scolaire: fetch all students
+      console.log("[v0] Default: showing all students")
       studentsResult = await supabase
         .from("students")
         .select(`
@@ -260,6 +278,7 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
           classes:class_id(name)
         `)
         .eq("establishment_id", establishmentId)
+        .eq("is_deleted", false)
         .order("last_name")
     }
 
@@ -267,6 +286,7 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
       console.error("[v0] Error fetching students:", studentsResult.error)
       setStudents([])
     } else {
+      console.log("[v0] Students loaded:", studentsResult.data?.length)
       setStudents(studentsResult.data || [])
     }
 
@@ -317,6 +337,7 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
               can_create_subrooms: formData.can_create_subrooms,
               establishment_id: establishmentId,
               profile_id: null,
+              is_deleted: false, // Add is_deleted
             },
           ])
           .select()
@@ -391,19 +412,19 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
 
   async function handleDeleteStudent(student: Student) {
     try {
-      // Delete profile if exists
+      // Mark as deleted instead of hard delete
+      const { error } = await supabase.from("students").update({ is_deleted: true }).eq("id", student.id)
+
+      if (error) throw error
+
+      // If profile exists, delete it as well
       if (student.profile_id) {
         await supabase.from("profiles").delete().eq("id", student.profile_id)
       }
 
-      // Delete student
-      const { error } = await supabase.from("students").delete().eq("id", student.id)
-
-      if (error) throw error
-
       toast({
         title: "Succès",
-        description: "Élève supprimé avec succès",
+        description: "Élève marqué comme supprimé avec succès",
       })
       setIsDeleteDialogOpen(false)
       setStudentToDelete(null)
@@ -420,22 +441,21 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
 
   async function handleBulkDelete() {
     try {
+      // Mark selected students as deleted
+      const { error } = await supabase.from("students").update({ is_deleted: true }).in("id", selectedStudents)
+
+      if (error) throw error
+
       // Delete profiles for students that have them
       const studentsWithProfiles = students.filter((s) => selectedStudents.includes(s.id) && s.profile_id)
-
       if (studentsWithProfiles.length > 0) {
         const profileIds = studentsWithProfiles.map((s) => s.profile_id).filter(Boolean)
         await supabase.from("profiles").delete().in("id", profileIds)
       }
 
-      // Delete students
-      const { error } = await supabase.from("students").delete().in("id", selectedStudents)
-
-      if (error) throw error
-
       toast({
         title: "Succès",
-        description: `${selectedStudents.length} élève(s) supprimé(s) avec succès`,
+        description: `${selectedStudents.length} élève(s) marqué(s) comme supprimé(s) avec succès`,
       })
       setIsBulkDeleteDialogOpen(false)
       setSelectedStudents([])
@@ -978,7 +998,7 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
         </Button>
         <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight">
-            {userRole === "vie-scolaire" ? "Gestion des élèves" : "Mes camarades"}
+            {userRole === "professeur" ? "Mes camarades" : "Gestion des élèves"}
           </h1>
           <p className="text-muted-foreground mt-1">Gérez les élèves, leurs accès et leurs informations</p>
         </div>
