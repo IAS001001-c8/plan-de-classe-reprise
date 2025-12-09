@@ -189,7 +189,6 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
       console.log("[v0] Professor teacher data:", teacherData)
 
       if (teacherData) {
-        // Get classes taught by this teacher
         const { data: teacherClasses } = await supabase
           .from("teacher_classes")
           .select("class_id")
@@ -200,7 +199,6 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
         console.log("[v0] Professor class IDs:", classIds)
 
         if (classIds.length > 0) {
-          // Fetch students from those classes
           studentsResult = await supabase
             .from("students")
             .select(`
@@ -212,28 +210,12 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
             .eq("is_deleted", false)
             .order("last_name")
         } else {
-          console.log("[v0] Professor has no classes, showing all students")
-          studentsResult = await supabase
-            .from("students")
-            .select(`
-              *,
-              classes:class_id(name)
-            `)
-            .eq("establishment_id", establishmentId)
-            .eq("is_deleted", false)
-            .order("last_name")
+          console.log("[v0] Professor has no classes, showing empty list")
+          studentsResult = { data: [], error: null }
         }
       } else {
-        console.log("[v0] No teacher record found, showing all students")
-        studentsResult = await supabase
-          .from("students")
-          .select(`
-            *,
-            classes:class_id(name)
-          `)
-          .eq("establishment_id", establishmentId)
-          .eq("is_deleted", false)
-          .order("last_name")
+        console.log("[v0] No teacher record found, showing empty list")
+        studentsResult = { data: [], error: null }
       }
     } else if (userRole === "delegue" || userRole === "eco-delegue") {
       console.log("[v0] Fetching classmates for delegate")
@@ -246,7 +228,6 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
       console.log("[v0] Delegate student data:", studentData)
 
       if (studentData?.class_id) {
-        // Fetch all students from that class
         studentsResult = await supabase
           .from("students")
           .select(`
@@ -258,36 +239,20 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
           .eq("is_deleted", false)
           .order("last_name")
       } else {
-        console.log("[v0] No student record found, showing all students")
-        studentsResult = await supabase
-          .from("students")
-          .select(`
-            *,
-            classes:class_id(name)
-          `)
-          .eq("establishment_id", establishmentId)
-          .eq("is_deleted", false)
-          .order("last_name")
+        console.log("[v0] No student record found, showing empty list")
+        studentsResult = { data: [], error: null }
       }
     } else {
-      console.log("[v0] Default: showing all students")
-      studentsResult = await supabase
-        .from("students")
-        .select(`
-          *,
-          classes:class_id(name)
-        `)
-        .eq("establishment_id", establishmentId)
-        .eq("is_deleted", false)
-        .order("last_name")
+      console.log("[v0] Unknown role, showing empty list")
+      studentsResult = { data: [], error: null }
     }
 
-    if (studentsResult.error) {
-      console.error("[v0] Error fetching students:", studentsResult.error)
-      setStudents([])
-    } else {
+    if (studentsResult && !studentsResult.error) {
       console.log("[v0] Students loaded:", studentsResult.data?.length)
       setStudents(studentsResult.data || [])
+    } else {
+      console.error("[v0] Error fetching students:", studentsResult?.error)
+      setStudents([])
     }
 
     setLoading(false)

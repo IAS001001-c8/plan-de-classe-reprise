@@ -128,7 +128,6 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
 
     console.log("[v0] fetchData called with:", { userRole, userId, establishmentId })
 
-    // Fetch classes
     const { data: classesData, error: classesError } = await supabase
       .from("classes")
       .select("id, name")
@@ -155,7 +154,6 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
       const { data: teacherData } = await supabase.from("teachers").select("id").eq("profile_id", userId).maybeSingle()
 
       if (teacherData) {
-        // Get classes taught by this teacher
         const { data: teacherClasses } = await supabase
           .from("teacher_classes")
           .select("class_id")
@@ -166,7 +164,6 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
         console.log("[v0] Teacher classes:", classIds)
 
         if (classIds.length > 0) {
-          // Get all teachers who teach at least one of these classes
           const { data: colleagueClasses } = await supabase
             .from("teacher_classes")
             .select("teacher_id")
@@ -184,22 +181,12 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
             .eq("is_deleted", false)
             .order("last_name")
         } else {
-          console.log("[v0] Professor has no classes, showing all teachers")
-          teachersResult = await supabase
-            .from("teachers")
-            .select("*")
-            .eq("establishment_id", establishmentId)
-            .eq("is_deleted", false)
-            .order("last_name")
+          console.log("[v0] Professor has no classes, showing empty list")
+          teachersResult = { data: [], error: null }
         }
       } else {
-        console.log("[v0] No teacher record found, showing all teachers")
-        teachersResult = await supabase
-          .from("teachers")
-          .select("*")
-          .eq("establishment_id", establishmentId)
-          .eq("is_deleted", false)
-          .order("last_name")
+        console.log("[v0] No teacher record found, showing empty list")
+        teachersResult = { data: [], error: null }
       }
     } else if (userRole === "delegue" || userRole === "eco-delegue") {
       console.log("[v0] Fetching teachers for delegate")
@@ -212,7 +199,6 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
       console.log("[v0] Delegate student data:", studentData)
 
       if (studentData?.class_id) {
-        // Get teachers for this class
         const { data: classTeachers } = await supabase
           .from("teacher_classes")
           .select("teacher_id")
@@ -231,31 +217,16 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
             .eq("is_deleted", false)
             .order("last_name")
         } else {
-          console.log("[v0] No teacher_classes found, showing all teachers")
-          teachersResult = await supabase
-            .from("teachers")
-            .select("*")
-            .eq("establishment_id", establishmentId)
-            .eq("is_deleted", false)
-            .order("last_name")
+          console.log("[v0] No teacher_classes found, showing empty list")
+          teachersResult = { data: [], error: null }
         }
       } else {
-        console.log("[v0] No student record found, showing all teachers")
-        teachersResult = await supabase
-          .from("teachers")
-          .select("*")
-          .eq("establishment_id", establishmentId)
-          .eq("is_deleted", false)
-          .order("last_name")
+        console.log("[v0] No student record found, showing empty list")
+        teachersResult = { data: [], error: null }
       }
     } else {
-      console.log("[v0] Default: showing all teachers")
-      teachersResult = await supabase
-        .from("teachers")
-        .select("*")
-        .eq("establishment_id", establishmentId)
-        .eq("is_deleted", false)
-        .order("last_name")
+      console.log("[v0] Unknown role, showing empty list")
+      teachersResult = { data: [], error: null }
     }
 
     if (teachersResult && !teachersResult.error) {
