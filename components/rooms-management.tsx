@@ -989,7 +989,7 @@ function RoomVisualization({ room }: { room: Room }) {
             {Array.from({ length: column.tables }).map((_, tableIndex) => (
               <div
                 key={tableIndex}
-                className="relative bg-gradient-to-br from-amber-700 via-amber-800 to-amber-900 dark:from-amber-900/50 dark:to-amber-950/50 rounded-2xl p-4 shadow-lg border-2 border-amber-900 dark:border-amber-950"
+                className="relative bg-gradient-to-br from-[#B58255] via-[#B58255] to-[#A07245] dark:from-[#B58255]/50 dark:to-[#A07245]/50 rounded-2xl p-4 shadow-lg border-2 border-[#A07245] dark:border-[#A07245]"
                 style={{ minWidth: `${column.seatsPerTable * 80}px` }}
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/20 rounded-2xl pointer-events-none" />
@@ -1007,7 +1007,7 @@ function RoomVisualization({ room }: { room: Room }) {
                     return (
                       <div
                         key={seatIndex}
-                        className="w-16 h-16 bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:via-emerald-600 hover:to-emerald-700 text-white rounded-xl flex items-center justify-center text-lg font-bold shadow-md hover:shadow-xl transition-all duration-200 hover:scale-105 border border-emerald-300 cursor-pointer"
+                        className="w-16 h-16 bg-gradient-to-br from-[#CCEDD6] via-[#CCEDD6] to-[#B8E0C7] hover:from-[#B8E0C7] hover:via-[#CCEDD6] hover:to-[#A5D4B9] text-gray-800 rounded-xl flex items-center justify-center text-lg font-bold shadow-md hover:shadow-xl transition-all duration-200 hover:scale-105 border border-[#A5D4B9] cursor-pointer"
                       >
                         <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-xl" />
                         <span className="relative drop-shadow-sm">{currentSeatNumber}</span>

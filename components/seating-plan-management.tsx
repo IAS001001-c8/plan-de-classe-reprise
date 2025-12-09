@@ -171,25 +171,47 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
   }
 
   const setAvailableOptions = async (supabase: any) => {
+    console.log("[v0] setAvailableOptions called for role:", userRole, "userId:", userId)
+
     if (userRole === "professeur") {
-      const { data: teacherClasses } = await supabase
-        .from("teacher_classes")
-        .select("class_id, classes(id, name)")
-        .eq("teacher_id", userId)
+      const { data: teacherData } = await supabase.from("teachers").select("id").eq("profile_id", userId).maybeSingle()
 
-      const myClasses = teacherClasses?.map((tc: any) => tc.classes) || []
-      setAvailableClasses(myClasses)
+      console.log("[v0] Teacher lookup result:", teacherData)
 
-      const myTeacher = teachers.find((t) => t.id === userId)
-      setAvailableTeachers(myTeacher ? [myTeacher] : [])
+      if (teacherData) {
+        const { data: teacherClasses } = await supabase
+          .from("teacher_classes")
+          .select("class_id, classes(id, name)")
+          .eq("teacher_id", teacherData.id)
+
+        console.log("[v0] Teacher classes:", teacherClasses)
+
+        const myClasses = teacherClasses?.map((tc: any) => tc.classes) || []
+        setAvailableClasses(myClasses)
+
+        const myTeacher = teachers.find((t) => t.id === teacherData.id)
+        setAvailableTeachers(myTeacher ? [myTeacher] : [])
+      } else {
+        console.log("[v0] No teacher found with profile_id:", userId)
+        setAvailableClasses([])
+        setAvailableTeachers([])
+      }
     } else if (userRole === "delegue" || userRole === "eco-delegue") {
-      const { data: studentData } = await supabase.from("students").select("class_id").eq("id", userId).single()
+      const { data: studentData } = await supabase
+        .from("students")
+        .select("id, class_id")
+        .eq("profile_id", userId)
+        .maybeSingle()
+
+      console.log("[v0] Student lookup result:", studentData)
 
       if (studentData?.class_id) {
         const { data: classTeachers } = await supabase
           .from("teacher_classes")
           .select("teacher_id, teachers(id, first_name, last_name, subject, allow_delegate_subrooms)")
           .eq("class_id", studentData.class_id)
+
+        console.log("[v0] Class teachers:", classTeachers)
 
         const allowedTeachers =
           classTeachers?.map((ct: any) => ct.teachers).filter((t: Teacher) => t.allow_delegate_subrooms === true) || []
@@ -198,8 +220,13 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
 
         const myClass = classes.find((c) => c.id === studentData.class_id)
         setAvailableClasses(myClass ? [myClass] : [])
+      } else {
+        console.log("[v0] No student found with profile_id:", userId)
+        setAvailableClasses([])
+        setAvailableTeachers([])
       }
     } else {
+      console.log("[v0] Vie scolaire: showing all teachers and classes")
       setAvailableTeachers(teachers)
       setAvailableClasses(classes)
     }

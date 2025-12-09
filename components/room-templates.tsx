@@ -116,16 +116,4 @@ export const ROOM_TEMPLATES: RoomTemplate[] = [
     ],
     boardPosition: "top",
   },
-  {
-    id: "template-10",
-    name: "Classe Mixte 34",
-    description: "Configuration mixte avec différentes tailles",
-    totalSeats: 34,
-    columns: [
-      { id: "col1", tables: 5, seatsPerTable: 2 },
-      { id: "col2", tables: 6, seatsPerTable: 2 },
-      { id: "col3", tables: 6, seatsPerTable: 2 },
-    ],
-    boardPosition: "top",
-  },
 ]
