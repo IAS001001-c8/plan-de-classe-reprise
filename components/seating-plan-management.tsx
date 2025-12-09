@@ -18,7 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { ArrowLeft, Plus, Search, AlertTriangle, Users, BookOpen } from "lucide-react"
+import { ArrowLeft, Plus, Search, AlertTriangle, Users, BookOpen, Trash2 } from "lucide-react"
 import type { UserRole } from "@/lib/types"
 import { SeatingPlanEditor } from "@/components/seating-plan-editor"
 
@@ -397,6 +397,50 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
     }
   }
 
+  const handleDeleteSubRoom = async (subRoomId: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette sous-salle ? Cette action est irréversible.")) {
+      return
+    }
+
+    try {
+      console.log("[v0] Deleting sub-room:", subRoomId)
+
+      // Delete seating assignments first
+      const { error: assignmentsError } = await createClient()
+        .from("seating_assignments")
+        .delete()
+        .eq("sub_room_id", subRoomId)
+
+      if (assignmentsError) {
+        console.error("[v0] Error deleting assignments:", assignmentsError)
+        throw assignmentsError
+      }
+
+      // Delete sub-room
+      const { error: subRoomError } = await createClient().from("sub_rooms").delete().eq("id", subRoomId)
+
+      if (subRoomError) {
+        console.error("[v0] Error deleting sub-room:", subRoomError)
+        throw subRoomError
+      }
+
+      toast({
+        title: "Succès",
+        description: "La sous-salle a été supprimée avec succès",
+      })
+
+      // Refresh the list
+      await fetchData()
+    } catch (error) {
+      console.error("[v0] Error deleting sub-room:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer la sous-salle",
+        variant: "destructive",
+      })
+    }
+  }
+
   const isVieScolaire = userRole === "vie-scolaire"
   const canCreateSubRooms =
     isVieScolaire || userRole === "professeur" || userRole === "delegue" || userRole === "eco-delegue"
@@ -508,7 +552,20 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
             >
               <CardContent className="p-6">
                 <div className="space-y-3">
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">{subRoom.name}</h3>
+                  <div className="flex items-start justify-between">
+                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">{subRoom.name}</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteSubRoom(subRoom.id)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <BookOpen className="h-4 w-4" />

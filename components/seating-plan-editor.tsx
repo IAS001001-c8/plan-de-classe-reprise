@@ -25,7 +25,6 @@ import {
   CheckCircle,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { RoomLayout } from "@/components/room-layout"
 
 interface Student {
   id: string
@@ -496,18 +495,33 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
     if (!room) return "w-16 h-16"
     const columnCount = room.config.columns.length
 
-    if (columnCount <= 2) return "w-24 h-24 lg:w-32 lg:h-32"
-    if (columnCount <= 4) return "w-20 h-20 lg:w-24 lg:h-24"
-    return "w-16 h-16 lg:w-20 lg:h-20"
+    // For 2 columns or less: large tables
+    if (columnCount <= 2) return "w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40"
+    // For 3-4 columns: medium tables
+    if (columnCount <= 4) return "w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28"
+    // For 5+ columns: small tables
+    return "w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20"
   }
 
   const getResponsiveSeatSize = () => {
     if (!room) return "w-8 h-8"
     const columnCount = room.config.columns.length
 
-    if (columnCount <= 2) return "w-12 h-12 lg:w-14 lg:h-14"
-    if (columnCount <= 4) return "w-10 h-10 lg:w-12 lg:h-12"
-    return "w-8 h-8 lg:w-10 lg:h-10"
+    // For 2 columns or less: large seats
+    if (columnCount <= 2) return "w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16"
+    // For 3-4 columns: medium seats
+    if (columnCount <= 4) return "w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12"
+    // For 5+ columns: small seats
+    return "w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10"
+  }
+
+  const getResponsiveGap = () => {
+    if (!room) return "gap-4"
+    const columnCount = room.config.columns.length
+
+    if (columnCount <= 2) return "gap-6 md:gap-8"
+    if (columnCount <= 4) return "gap-4 md:gap-6"
+    return "gap-3 md:gap-4"
   }
 
   if (!room) {
@@ -659,17 +673,63 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
           <div className="col-span-8">
             <Card className="border-gray-200 dark:border-gray-800">
               <CardContent className="p-8">
-                <RoomLayout
-                  room={room}
-                  assignments={assignments}
-                  students={students}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                  onRemove={handleRemoveFromSeat}
-                  onDragStart={handleDragStart}
-                  getTableStyle={getTableStyle}
-                  getSeatStyle={getSeatStyle}
-                />
+                <div className="w-full overflow-x-auto">
+                  <div className={`flex ${getResponsiveGap()} justify-center items-start min-w-min p-4`}>
+                    {room.config.columns.map((column, colIndex) => (
+                      <div key={column.id} className={`flex flex-col ${getResponsiveGap()}`}>
+                        {Array.from({ length: column.tables }).map((_, tableIndex) => (
+                          <div
+                            key={tableIndex}
+                            className={`relative ${getResponsiveTableSize()} rounded-lg border-2 flex items-center justify-center`}
+                            style={getTableStyle()}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => {
+                              const seatNumber = getSeatNumber(colIndex, tableIndex, 0)
+                              handleDrop(seatNumber)
+                            }}
+                          >
+                            <div className={`grid grid-cols-2 ${getResponsiveGap()}`}>
+                              {Array.from({ length: column.seatsPerTable }).map((_, seatIndex) => {
+                                const seatNumber = getSeatNumber(colIndex, tableIndex, seatIndex)
+                                const assignment = assignments.get(seatNumber)
+                                const student = assignment ? students.find((s) => s.id === assignment) : null
+                                const isOccupied = !!student
+
+                                return (
+                                  <div
+                                    key={seatIndex}
+                                    className={`${getResponsiveSeatSize()} rounded border-2 flex items-center justify-center text-xs font-medium cursor-pointer transition-all hover:scale-105 relative group`}
+                                    style={getSeatStyle(isOccupied)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(seatNumber)}
+                                    draggable={isOccupied}
+                                    onDragStart={() => student && handleDragStart(student)}
+                                  >
+                                    {student ? (
+                                      <>
+                                        <span className="text-gray-700 dark:text-gray-800 text-[10px] sm:text-xs">
+                                          {student.last_name.substring(0, 1)}.{student.first_name.substring(0, 1)}
+                                        </span>
+                                        <button
+                                          onClick={() => handleRemoveFromSeat(seatNumber)}
+                                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                                        >
+                                          ×
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span className="text-gray-400 text-[10px] sm:text-xs">{seatNumber}</span>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
