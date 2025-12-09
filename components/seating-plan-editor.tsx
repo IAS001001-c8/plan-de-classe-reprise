@@ -135,43 +135,41 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
     e.preventDefault()
   }
 
-  const handleDrop = (seatNumber: number) => {
+  const handleDrop = (e: React.DragEvent, seatNumber: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+
     if (!draggedStudent) return
 
-    const newAssignments = new Map(assignments)
+    console.log("[v0] Dropping student on seat:", seatNumber)
 
+    const newAssignments = new Map(assignments)
     const occupiedStudentId = newAssignments.get(seatNumber)
 
-    if (occupiedStudentId) {
-      // Seat is occupied - swap students
-      // Find the seat of the dragged student (if any)
-      let draggedStudentSeat: number | null = null
-      for (const [seat, studentId] of newAssignments.entries()) {
+    // Remove student from any previous seat
+    for (const [seat, studentId] of newAssignments.entries()) {
+      if (studentId === draggedStudent.id) {
+        newAssignments.delete(seat)
+      }
+    }
+
+    if (occupiedStudentId && occupiedStudentId !== draggedStudent.id) {
+      // Swap with occupied seat
+      let draggedStudentPreviousSeat: number | null = null
+      for (const [seat, studentId] of Array.from(newAssignments.entries())) {
         if (studentId === draggedStudent.id) {
-          draggedStudentSeat = seat
+          draggedStudentPreviousSeat = seat
           break
         }
       }
 
-      // Swap: put dragged student in target seat, put occupied student in dragged student's old seat (or unassign)
       newAssignments.set(seatNumber, draggedStudent.id)
 
-      if (draggedStudentSeat !== null) {
-        // Swap positions
-        newAssignments.set(draggedStudentSeat, occupiedStudentId)
-      } else {
-        // Dragged student was unassigned, so remove occupied student from seat (send to list)
-        newAssignments.delete(seatNumber)
-        newAssignments.set(seatNumber, draggedStudent.id)
+      if (draggedStudentPreviousSeat !== null) {
+        newAssignments.set(draggedStudentPreviousSeat, occupiedStudentId)
       }
     } else {
-      // Seat is empty - just assign
-      // Remove student from previous seat if assigned
-      for (const [seat, studentId] of newAssignments.entries()) {
-        if (studentId === draggedStudent.id) {
-          newAssignments.delete(seat)
-        }
-      }
+      // Just assign to empty seat
       newAssignments.set(seatNumber, draggedStudent.id)
     }
 
@@ -459,25 +457,41 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
     e.preventDefault()
   }
 
-  const handleTouchEnd = (e: React.TouchEvent, seatNumber?: number) => {
-    if (!isDragging || !draggedStudent) return
+  const handleTouchEnd = (e: React.TouchEvent, targetSeatNumber?: number) => {
+    if (!isDragging || !draggedStudent || !touchStartPos) {
+      setIsDragging(false)
+      setDraggedStudent(null)
+      setTouchStartPos(null)
+      return
+    }
 
     const touch = e.changedTouches[0]
     const element = document.elementFromPoint(touch.clientX, touch.clientY)
 
-    // Find the seat element
-    const seatElement = element?.closest("[data-seat-number]")
-    if (seatElement) {
-      const targetSeat = Number.parseInt(seatElement.getAttribute("data-seat-number") || "0")
-      handleDrop(targetSeat)
-    } else if (element?.closest("[data-unassigned-list]")) {
-      // Dropped back to unassigned list
+    let seatNumber = targetSeatNumber
+
+    // Try to find seat number from the element
+    if (!seatNumber && element) {
+      const seatDiv = element.closest("[data-seat-number]") as HTMLElement
+      if (seatDiv) {
+        seatNumber = Number.parseInt(seatDiv.dataset.seatNumber || "0")
+      }
+    }
+
+    if (seatNumber && seatNumber > 0) {
+      console.log("[v0] Touch drop on seat:", seatNumber)
+
       const newAssignments = new Map(assignments)
+
+      // Remove from previous position
       for (const [seat, studentId] of newAssignments.entries()) {
         if (studentId === draggedStudent.id) {
           newAssignments.delete(seat)
         }
       }
+
+      // Assign to new seat
+      newAssignments.set(seatNumber, draggedStudent.id)
       setAssignments(newAssignments)
     }
 
@@ -538,21 +552,23 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   }
 
   const getResponsiveTableSize = () => {
-    if (!room) return "w-16 h-16"
-    const columnCount = room.config.columns.length
+    if (!room) return "w-40 h-32"
 
-    if (columnCount <= 2) return "w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 lg:w-44 lg:h-44"
-    if (columnCount <= 4) return "w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32"
-    return "w-20 h-20 sm:w-22 sm:h-22 md:w-24 md:h-24"
+    const cols = room.config.columns.length
+
+    if (cols <= 2) return "w-48 h-36 sm:w-56 sm:h-40" // Larger for 2 columns
+    if (cols <= 4) return "w-36 h-28 sm:w-40 sm:h-32" // Medium for 3-4 columns
+    return "w-32 h-24 sm:w-36 sm:h-28" // Compact for 5+ columns
   }
 
   const getResponsiveSeatSize = () => {
-    if (!room) return "w-8 h-8"
-    const columnCount = room.config.columns.length
+    if (!room) return "w-14 h-14"
 
-    if (columnCount <= 2) return "w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18"
-    if (columnCount <= 4) return "w-10 h-10 sm:w-12 sm:h-12 md:w-13 md:h-13"
-    return "w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10"
+    const cols = room.config.columns.length
+
+    if (cols <= 2) return "w-16 h-16 sm:w-20 sm:h-20" // Larger seats for 2 columns
+    if (cols <= 4) return "w-14 h-14 sm:w-16 sm:h-16" // Medium seats
+    return "w-12 h-12 sm:w-14 sm:h-14" // Compact seats for many columns
   }
 
   const getResponsiveGap = () => {
@@ -728,7 +744,7 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                             onDragOver={handleDragOver}
                             onDrop={(e) => {
                               const seatNumber = getSeatNumber(colIndex, tableIndex, 0)
-                              handleDrop(seatNumber)
+                              handleDrop(e, seatNumber)
                             }}
                           >
                             <div
@@ -763,7 +779,7 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                                       color: isOccupied ? "#FFFFFF" : "#9CA3AF",
                                     }}
                                     onDragOver={handleDragOver}
-                                    onDrop={(e) => handleDrop(seatNumber)}
+                                    onDrop={(e) => handleDrop(e, seatNumber)}
                                     draggable={isOccupied}
                                     onDragStart={() => student && handleDragStart(student)}
                                     onTouchStart={(e) => student && handleTouchStart(e, student)}

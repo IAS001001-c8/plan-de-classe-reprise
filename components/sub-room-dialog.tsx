@@ -62,6 +62,7 @@ export function SubRoomDialog({
     const filterClassesByTeachers = async () => {
       if (selectedTeachers.length === 0) {
         setFilteredClasses([])
+        setSelectedClasses([]) // Reset selected classes
         return
       }
 
@@ -76,6 +77,9 @@ export function SubRoomDialog({
         const classIds = teacherClasses.map((tc) => tc.class_id)
         const filtered = availableClasses.filter((c) => classIds.includes(c.id) && !c.is_level)
         setFilteredClasses(filtered)
+
+        // Remove classes that are no longer valid
+        setSelectedClasses((prev) => prev.filter((id) => classIds.includes(id)))
       }
     }
 
@@ -266,10 +270,14 @@ export function SubRoomDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Classe{isCollaborative ? "s" : ""}</Label>
+            <Label>Classe{isCollaborative || selectedClasses.length > 1 ? "s" : ""}</Label>
             {selectedTeachers.length === 0 ? (
-              <div className="text-sm text-muted-foreground p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                Veuillez d'abord sélectionner un ou plusieurs professeurs
+              <div className="text-sm text-muted-foreground p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border">
+                📋 Veuillez d'abord sélectionner un ou plusieurs professeurs pour voir les classes disponibles
+              </div>
+            ) : filteredClasses.length === 0 ? (
+              <div className="text-sm text-muted-foreground p-4 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200">
+                ⚠️ Aucune classe n'est enseignée par {selectedTeachers.length > 1 ? "ces professeurs" : "ce professeur"}
               </div>
             ) : (
               <>
@@ -281,7 +289,11 @@ export function SubRoomDialog({
                         checked={selectedClasses.includes(cls.id)}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setSelectedClasses((prev) => [...prev, cls.id])
+                            if (isCollaborative) {
+                              setSelectedClasses((prev) => [...prev, cls.id])
+                            } else {
+                              setSelectedClasses([cls.id]) // Single selection if not collaborative
+                            }
                           } else {
                             setSelectedClasses((prev) => prev.filter((id) => id !== cls.id))
                           }
@@ -293,10 +305,10 @@ export function SubRoomDialog({
                     </div>
                   ))}
                 </div>
-                {filteredClasses.length === 0 && (
-                  <div className="text-sm text-muted-foreground">
-                    Aucune classe n'est enseignée par{" "}
-                    {selectedTeachers.length > 1 ? "ces professeurs" : "ce professeur"}
+                {selectedClasses.length > 0 && (
+                  <div className="text-sm text-green-600 dark:text-green-400">
+                    ✓ {selectedClasses.length} classe{selectedClasses.length > 1 ? "s" : ""} sélectionnée
+                    {selectedClasses.length > 1 ? "s" : ""}
                   </div>
                 )}
               </>
