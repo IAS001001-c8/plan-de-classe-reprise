@@ -141,11 +141,24 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
     let teachersResult
 
     if (userRole === "professeur") {
-      // Get the teacher's classes first
+      // First, find the teacher record using profile_id
+      const { data: teacherData, error: teacherError } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("profile_id", userId)
+        .single()
+
+      if (teacherError || !teacherData) {
+        console.error("[v0] Error fetching teacher record:", teacherError)
+        setTeachers([])
+        return
+      }
+
+      // Get the teacher's classes
       const { data: teacherClasses, error: teacherClassesError } = await supabase
         .from("teacher_classes")
         .select("class_id")
-        .eq("teacher_id", userId)
+        .eq("teacher_id", teacherData.id)
 
       if (teacherClassesError) {
         console.error("[v0] Error fetching teacher classes:", teacherClassesError)
@@ -182,15 +195,15 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
         .in("id", teacherIds)
         .order("last_name")
     } else if (userRole === "delegue" || userRole === "eco-delegue") {
-      // Get the student's class first
+      // First, find the student record using profile_id
       const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select("class_id")
-        .eq("id", userId)
+        .eq("profile_id", userId)
         .single()
 
       if (studentError || !studentData?.class_id) {
-        console.error("[v0] Error fetching student class:", studentError)
+        console.error("[v0] Error fetching student record:", studentError)
         setTeachers([])
         return
       }
