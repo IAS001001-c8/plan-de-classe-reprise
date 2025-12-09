@@ -527,7 +527,7 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   const getTableStyle = () => {
     return {
       backgroundColor: "#FFFFFF", // White tables
-      borderColor: "#E5E7EB",
+      borderColor: "#8B7355", // Brown border
     }
   }
 
@@ -535,7 +535,7 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
     if (isOccupied) {
       return {
         backgroundColor: "#000000", // Black background for occupied seats
-        borderColor: "#374151",
+        borderColor: "#000000",
         color: "#FFFFFF", // White text
       }
     }
@@ -809,6 +809,7 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                                           : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500"
                                       }
                                     `}
+                                    style={getSeatStyle(isOccupied)}
                                   >
                                     {student ? (
                                       <>

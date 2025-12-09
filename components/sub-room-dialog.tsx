@@ -59,10 +59,14 @@ export function SubRoomDialog({
   })
 
   useEffect(() => {
+    console.log("[v0] Selected teachers:", selectedTeachers)
+    console.log("[v0] Available classes:", availableClasses.length)
+
     const filterClassesByTeachers = async () => {
       if (selectedTeachers.length === 0) {
+        console.log("[v0] No teachers selected, clearing classes")
         setFilteredClasses([])
-        setSelectedClasses([]) // Reset selected classes
+        setSelectedClasses([])
         return
       }
 
@@ -73,12 +77,14 @@ export function SubRoomDialog({
         .select("class_id")
         .in("teacher_id", selectedTeachers)
 
+      console.log("[v0] Teacher classes found:", teacherClasses?.length)
+
       if (teacherClasses) {
         const classIds = teacherClasses.map((tc) => tc.class_id)
         const filtered = availableClasses.filter((c) => classIds.includes(c.id) && !c.is_level)
+        console.log("[v0] Filtered classes:", filtered.length)
         setFilteredClasses(filtered)
 
-        // Remove classes that are no longer valid
         setSelectedClasses((prev) => prev.filter((id) => classIds.includes(id)))
       }
     }
@@ -224,125 +230,85 @@ export function SubRoomDialog({
             />
           </div>
 
-          <div className="flex items-center space-x-3 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border-2 border-blue-200 dark:border-blue-800">
+          <div className="flex items-center space-x-3">
             <Checkbox
               id="collaborative"
               checked={isCollaborative}
               onCheckedChange={(checked) => {
+                console.log("[v0] Collaborative checkbox toggled:", checked)
                 setIsCollaborative(checked as boolean)
                 if (!checked && selectedTeachers.length > 1) {
                   setSelectedTeachers([selectedTeachers[0]])
                 }
               }}
             />
-            <Label htmlFor="collaborative" className="cursor-pointer flex-1">
-              <div className="font-semibold text-blue-900 dark:text-blue-100">
-                🤝 Salle collaborative multi-professeurs
-              </div>
-              <div className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                Cochez cette case pour permettre à plusieurs professeurs de gérer cette sous-salle ensemble
-              </div>
+            <Label htmlFor="collaborative" className="cursor-pointer font-medium">
+              ✓ Salle collaborative (multi-professeurs)
             </Label>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-base font-semibold">👨‍🏫 Professeur{isCollaborative ? "s" : ""} *</Label>
+            <Label>Professeur{isCollaborative ? "s" : ""} *</Label>
             <p className="text-sm text-muted-foreground">
               {isCollaborative ? "Sélectionnez un ou plusieurs professeurs" : "Sélectionnez un seul professeur"}
             </p>
-            <div className="border-2 rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+            <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
               {availableTeachers.length === 0 ? (
                 <div className="text-sm text-muted-foreground text-center py-4">Aucun professeur disponible</div>
               ) : (
                 availableTeachers.map((teacher) => (
-                  <div
-                    key={teacher.id}
-                    className="flex items-center space-x-3 p-2 hover:bg-white dark:hover:bg-gray-800 rounded transition-colors"
-                  >
+                  <div key={teacher.id} className="flex items-center space-x-3">
                     <Checkbox
                       id={`teacher-${teacher.id}`}
                       checked={selectedTeachers.includes(teacher.id)}
                       onCheckedChange={() => handleTeacherToggle(teacher.id)}
                     />
-                    <Label htmlFor={`teacher-${teacher.id}`} className="flex-1 cursor-pointer font-medium">
+                    <Label htmlFor={`teacher-${teacher.id}`} className="flex-1 cursor-pointer">
                       {teacher.first_name} {teacher.last_name}
-                      <span className="text-sm text-muted-foreground ml-2">• {teacher.subject}</span>
+                      <span className="text-sm text-muted-foreground ml-2">- {teacher.subject}</span>
                     </Label>
                   </div>
                 ))
               )}
             </div>
-            {selectedTeachers.length > 0 && (
-              <div className="text-sm font-medium text-green-600 dark:text-green-400">
-                ✓ {selectedTeachers.length} professeur{selectedTeachers.length > 1 ? "s" : ""} sélectionné
-                {selectedTeachers.length > 1 ? "s" : ""}
-              </div>
-            )}
           </div>
 
           <div className="space-y-2">
-            <Label className="text-base font-semibold">
-              📚 Classe{isCollaborative || selectedClasses.length > 1 ? "s" : ""} *
-            </Label>
+            <Label>Classe{isCollaborative || selectedClasses.length > 1 ? "s" : ""} *</Label>
             {selectedTeachers.length === 0 ? (
-              <div className="text-sm p-6 bg-amber-50 dark:bg-amber-950 rounded-lg border-2 border-amber-200 dark:border-amber-800 text-center">
-                <div className="text-4xl mb-2">👆</div>
-                <div className="font-medium text-amber-900 dark:text-amber-100">
-                  Veuillez d'abord sélectionner un ou plusieurs professeurs
-                </div>
-                <div className="text-amber-700 dark:text-amber-300 mt-1">
-                  Les classes disponibles dépendent des professeurs sélectionnés
-                </div>
+              <div className="text-sm p-4 border-2 border-orange-300 rounded-lg bg-orange-50 text-center font-medium">
+                ⚠️ Veuillez d'abord sélectionner un ou plusieurs professeurs pour voir les classes disponibles
               </div>
             ) : filteredClasses.length === 0 ? (
-              <div className="text-sm p-6 bg-red-50 dark:bg-red-950 rounded-lg border-2 border-red-200 dark:border-red-800 text-center">
-                <div className="text-4xl mb-2">⚠️</div>
-                <div className="font-medium text-red-900 dark:text-red-100">Aucune classe disponible</div>
-                <div className="text-red-700 dark:text-red-300 mt-1">
-                  {selectedTeachers.length > 1 ? "Ces professeurs n'enseignent" : "Ce professeur n'enseigne"} à aucune
-                  classe
-                </div>
+              <div className="text-sm p-4 border rounded-lg bg-muted text-center">
+                Aucune classe disponible pour {selectedTeachers.length > 1 ? "ces professeurs" : "ce professeur"}
               </div>
             ) : (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Seules les classes enseignées par{" "}
-                  {selectedTeachers.length > 1 ? "les professeurs sélectionnés" : "le professeur sélectionné"}
-                </p>
-                <div className="border-2 rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-900">
-                  {filteredClasses.map((cls) => (
-                    <div
-                      key={cls.id}
-                      className="flex items-center space-x-3 p-2 hover:bg-white dark:hover:bg-gray-800 rounded transition-colors"
-                    >
-                      <Checkbox
-                        id={`class-${cls.id}`}
-                        checked={selectedClasses.includes(cls.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            if (isCollaborative) {
-                              setSelectedClasses((prev) => [...prev, cls.id])
-                            } else {
-                              setSelectedClasses([cls.id])
-                            }
+              <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
+                {console.log("[v0] Rendering", filteredClasses.length, "classes")}
+                {filteredClasses.map((cls) => (
+                  <div key={cls.id} className="flex items-center space-x-3">
+                    <Checkbox
+                      id={`class-${cls.id}`}
+                      checked={selectedClasses.includes(cls.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          if (isCollaborative) {
+                            setSelectedClasses((prev) => [...prev, cls.id])
                           } else {
-                            setSelectedClasses((prev) => prev.filter((id) => id !== cls.id))
+                            setSelectedClasses([cls.id])
                           }
-                        }}
-                      />
-                      <Label htmlFor={`class-${cls.id}`} className="flex-1 cursor-pointer font-medium">
-                        {cls.name}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-                {selectedClasses.length > 0 && (
-                  <div className="text-sm font-medium text-green-600 dark:text-green-400">
-                    ✓ {selectedClasses.length} classe{selectedClasses.length > 1 ? "s" : ""} sélectionnée
-                    {selectedClasses.length > 1 ? "s" : ""}
+                        } else {
+                          setSelectedClasses((prev) => prev.filter((id) => id !== cls.id))
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`class-${cls.id}`} className="flex-1 cursor-pointer">
+                      {cls.name}
+                    </Label>
                   </div>
-                )}
-              </>
+                ))}
+              </div>
             )}
           </div>
 
