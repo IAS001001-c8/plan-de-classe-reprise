@@ -71,6 +71,8 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   const [assignments, setAssignments] = useState<Map<number, string>>(new Map())
   const [savedAssignments, setSavedAssignments] = useState<Map<number, string>>(new Map())
   const [draggedStudent, setDraggedStudent] = useState<Student | null>(null)
+  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [shareEmail, setShareEmail] = useState("")
   const [isSaving, setIsSaving] = useState(false)
@@ -445,6 +447,45 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
     setDraggedStudent(null)
   }
 
+  const handleTouchStart = (e: React.TouchEvent, student: Student) => {
+    const touch = e.touches[0]
+    setTouchStartPos({ x: touch.clientX, y: touch.clientY })
+    setDraggedStudent(student)
+    setIsDragging(true)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || !draggedStudent) return
+    e.preventDefault()
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent, seatNumber?: number) => {
+    if (!isDragging || !draggedStudent) return
+
+    const touch = e.changedTouches[0]
+    const element = document.elementFromPoint(touch.clientX, touch.clientY)
+
+    // Find the seat element
+    const seatElement = element?.closest("[data-seat-number]")
+    if (seatElement) {
+      const targetSeat = Number.parseInt(seatElement.getAttribute("data-seat-number") || "0")
+      handleDrop(targetSeat)
+    } else if (element?.closest("[data-unassigned-list]")) {
+      // Dropped back to unassigned list
+      const newAssignments = new Map(assignments)
+      for (const [seat, studentId] of newAssignments.entries()) {
+        if (studentId === draggedStudent.id) {
+          newAssignments.delete(seat)
+        }
+      }
+      setAssignments(newAssignments)
+    }
+
+    setIsDragging(false)
+    setDraggedStudent(null)
+    setTouchStartPos(null)
+  }
+
   const getTableStyle = () => {
     return {
       backgroundColor: "#B58255", // New brown color for tables
@@ -698,12 +739,16 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                                 return (
                                   <div
                                     key={seatIndex}
+                                    data-seat-number={seatNumber}
                                     className={`${getResponsiveSeatSize()} rounded border-2 flex items-center justify-center text-xs font-medium cursor-pointer transition-all hover:scale-105 relative group`}
                                     style={getSeatStyle(isOccupied)}
                                     onDragOver={handleDragOver}
                                     onDrop={(e) => handleDrop(seatNumber)}
                                     draggable={isOccupied}
                                     onDragStart={() => student && handleDragStart(student)}
+                                    onTouchStart={(e) => student && handleTouchStart(e, student)}
+                                    onTouchMove={handleTouchMove}
+                                    onTouchEnd={(e) => handleTouchEnd(e, seatNumber)}
                                   >
                                     {student ? (
                                       <>
@@ -753,6 +798,9 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                       key={student.id}
                       draggable
                       onDragStart={() => handleDragStart(student)}
+                      onTouchStart={(e) => handleTouchStart(e, student)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
                       className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 cursor-move hover:shadow-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
                     >
                       <div className="font-medium text-sm text-black dark:text-white">

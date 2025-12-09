@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -21,6 +21,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { ArrowLeft, Plus, Search, AlertTriangle, Users, BookOpen, Trash2 } from "lucide-react"
 import type { UserRole } from "@/lib/types"
 import { SeatingPlanEditor } from "@/components/seating-plan-editor"
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 
 interface Room {
   id: string
@@ -100,6 +101,10 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
   const [filterClass, setFilterClass] = useState<string>("all")
   const [filterTeacher, setFilterTeacher] = useState<string>("all")
   const [filterRoom, setFilterRoom] = useState<string>("all")
+
+  const [selectedSubRoomIds, setSelectedSubRoomIds] = useState<string[]>([])
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [subRoomsToDelete, setSubRoomsToDelete] = useState<string[]>([])
 
   useEffect(() => {
     fetchData()
@@ -397,16 +402,67 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
     }
   }
 
-  const handleDeleteSubRoom = async (subRoomId: string) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cette sous-salle ? Cette action est irréversible.")) {
-      return
-    }
+  const openDeleteDialog = (subRoomIds: string[]) => {
+    setSubRoomsToDelete(subRoomIds)
+    setIsDeleteDialogOpen(true)
+  }
 
+  const handleDeleteSubRooms = async () => {
     try {
-      console.log("[v0] Deleting sub-room:", subRoomId)
+      console.log("[v0] Deleting sub-rooms:", subRoomsToDelete)
+
+      const supabase = createClient()
 
       // Delete seating assignments first
-      const { error: assignmentsError } = await createClient()
+      const { error: assignmentsError } = await supabase
+        .from("seating_assignments")
+        .delete()
+        .in("sub_room_id", subRoomsToDelete)
+
+      if (assignmentsError) {
+        console.error("[v0] Error deleting assignments:", assignmentsError)
+        throw assignmentsError
+      }
+
+      // Delete sub-rooms
+      const { error: subRoomError } = await supabase.from("sub_rooms").delete().in("id", subRoomsToDelete)
+
+      if (subRoomError) {
+        console.error("[v0] Error deleting sub-rooms:", subRoomError)
+        throw subRoomError
+      }
+
+      toast({
+        title: "Succès",
+        description: `${subRoomsToDelete.length} sous-salle(s) supprimée(s) avec succès`,
+      })
+
+      // Clear selection and refresh
+      setSelectedSubRoomIds([])
+      setSubRoomsToDelete([])
+      await fetchData()
+    } catch (error) {
+      console.error("[v0] Error deleting sub-rooms:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer les sous-salles",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const toggleSubRoomSelection = (subRoomId: string) => {
+    setSelectedSubRoomIds((prev) =>
+      prev.includes(subRoomId) ? prev.filter((id) => id !== subRoomId) : [...prev, subRoomId],
+    )
+  }
+
+  const handleDeleteSubRoom = async (subRoomId: string) => {
+    try {
+      const supabase = createClient()
+
+      // Delete seating assignments first
+      const { error: assignmentsError } = await supabase
         .from("seating_assignments")
         .delete()
         .eq("sub_room_id", subRoomId)
@@ -416,20 +472,20 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
         throw assignmentsError
       }
 
-      // Delete sub-room
-      const { error: subRoomError } = await createClient().from("sub_rooms").delete().eq("id", subRoomId)
+      // Delete sub-rooms
+      const { error: subRoomError } = await supabase.from("sub_rooms").delete().eq("id", subRoomId)
 
       if (subRoomError) {
-        console.error("[v0] Error deleting sub-room:", subRoomError)
+        console.error("[v0] Error deleting sub-rooms:", subRoomError)
         throw subRoomError
       }
 
       toast({
         title: "Succès",
-        description: "La sous-salle a été supprimée avec succès",
+        description: `La sous-salle a été supprimée avec succès`,
       })
 
-      // Refresh the list
+      // Refresh
       await fetchData()
     } catch (error) {
       console.error("[v0] Error deleting sub-room:", error)
@@ -546,10 +602,33 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredSubRooms.map((subRoom) => (
-            <Card
-              key={subRoom.id}
-              className="cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:ring-2 hover:ring-indigo-300 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm"
-            >
+            <Card key={subRoom.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+              <div className="absolute top-4 left-4 z-10">
+                <input
+                  type="checkbox"
+                  checked={selectedSubRoomIds.includes(subRoom.id)}
+                  onChange={() => toggleSubRoomSelection(subRoom.id)}
+                  className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                />
+              </div>
+
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 ml-8">
+                    <CardTitle className="text-lg">{subRoom.name}</CardTitle>
+                    <CardDescription className="mt-1 text-sm">{subRoom.description}</CardDescription>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => openDeleteDialog([subRoom.id])}
+                    className="shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+
               <CardContent className="p-6">
                 <div className="space-y-3">
                   <div className="flex items-start justify-between">
@@ -740,6 +819,28 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
             }}
           />
         )}
+
+        {selectedSubRoomIds.length > 0 && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <Button
+              variant="destructive"
+              size="lg"
+              onClick={() => openDeleteDialog(selectedSubRoomIds)}
+              className="shadow-xl"
+            >
+              <Trash2 className="mr-2 h-5 w-5" />
+              Supprimer {selectedSubRoomIds.length} sous-salle(s)
+            </Button>
+          </div>
+        )}
+
+        <DeleteConfirmationDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          onConfirm={handleDeleteSubRooms}
+          itemCount={subRoomsToDelete.length}
+          itemType="sous-salle"
+        />
       </div>
 
       <Toaster />
