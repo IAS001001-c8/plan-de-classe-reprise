@@ -532,14 +532,13 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   }
 
   const getResponsiveTableSize = () => {
-    if (!room) return "w-48 h-48"
+    if (!room) return "w-64 h-48"
 
     const cols = room.config.columns.length
 
-    // Tables plus carrées et proportionnées
-    if (cols <= 2) return "w-56 h-56"
-    if (cols <= 4) return "w-48 h-48"
-    return "w-44 h-44"
+    if (cols <= 2) return "w-72 h-52"
+    if (cols <= 4) return "w-64 h-48"
+    return "w-56 h-44"
   }
 
   const getResponsiveSeatSize = () => {

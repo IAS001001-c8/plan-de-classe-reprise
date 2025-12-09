@@ -174,11 +174,17 @@ export function CreateSubRoomDialog({ open, onOpenChange, onSuccess, establishme
 
     setIsLoading(true)
     try {
+      const selectedRoom = rooms.find((r) => r.id === formData.roomId)
+      const firstTeacher = teachers.find((t) => t.id === formData.selectedTeachers[0])
+
+      const defaultName = `${selectedRoom?.name || "Salle"} - ${firstTeacher?.last_name || "Prof"}`
+
       // Créer la sous-salle
       const { data: subRoom, error: subRoomError } = await supabase
         .from("sub_rooms")
         .insert({
           room_id: formData.roomId,
+          name: formData.customName || defaultName, // Utiliser customName ou un nom par défaut
           custom_name: formData.customName || null,
           teacher_id: formData.selectedTeachers[0], // Premier prof comme prof principal
           establishment_id: establishmentId,
