@@ -19,7 +19,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { ArrowLeft, Plus, MoreVertical, Eye, Key, Mail, FileText, Upload } from "lucide-react"
+import { ArrowLeft, Plus, MoreVertical, Eye, Key, Mail, FileText, Upload, Pencil } from "lucide-react" // Added Pencil and Settings icons import
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { ImportTeachersDialog } from "@/components/import-teachers-dialog"
@@ -103,6 +103,15 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
   const [emailToConfirm, setEmailToConfirm] = useState("")
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [isBulkEmailDialogOpen, setIsBulkEmailDialogOpen] = useState(false)
+
+  const [isTeacherEditDialogOpen, setIsTeacherEditDialogOpen] = useState(false)
+  const [teacherEditFormData, setTeacherEditFormData] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    subject: "",
+  })
 
   const handleAddClass = () => {
     if (formData.classes.length < classes.length) {
@@ -526,6 +535,51 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
     setIsEditDialogOpen(true)
   }
 
+  const saveCredentialsBeforeSend = async (teacher: Teacher) => {
+    if (!teacher.profile_id) return true
+
+    try {
+      const supabase = createClient()
+
+      if (accessData.password !== "••••••••" && accessData.password.trim() !== "") {
+        const { data: hashedPassword, error: hashError } = await supabase.rpc("hash_password", {
+          password: accessData.password,
+        })
+
+        if (hashError) throw hashError
+
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({
+            username: accessData.username,
+            password_hash: hashedPassword,
+          })
+          .eq("id", teacher.profile_id)
+
+        if (profileError) throw profileError
+      } else {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({
+            username: accessData.username,
+          })
+          .eq("id", teacher.profile_id)
+
+        if (profileError) throw profileError
+      }
+
+      return true
+    } catch (error) {
+      console.error("[v0] Error saving credentials:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder les identifiants",
+        variant: "destructive",
+      })
+      return false
+    }
+  }
+
   const handleUpdateCredentials = async () => {
     if (!selectedTeacher) return
 
@@ -614,17 +668,13 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
     fetchData()
   }
 
-  const handleSendEmail = () => {
-    if (!selectedTeacher || !selectedTeacher.email) {
-      toast({
-        title: "Erreur",
-        description: "Aucune adresse email renseignée pour ce professeur",
-        variant: "destructive",
-      })
-      return
-    }
+  const handleSendCredentials = async () => {
+    if (!selectedTeacher || !accessData.username) return
 
-    setEmailToConfirm(selectedTeacher.email)
+    // Save credentials first
+    const saved = await saveCredentialsBeforeSend(selectedTeacher)
+    if (!saved) return
+
     setIsEmailConfirmDialogOpen(true)
   }
 
@@ -745,6 +795,34 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
     } finally {
       setIsSendingEmail(false)
     }
+  }
+
+  const handleDownloadPDF = async () => {
+    if (!selectedTeacher || !accessData.username) return
+
+    // Save credentials first
+    const saved = await saveCredentialsBeforeSend(selectedTeacher)
+    if (!saved) return
+
+    // Proceed with PDF download
+    const { jsPDF } = await import("jspdf")
+    const doc = new jsPDF()
+
+    doc.setFontSize(18)
+    doc.text("Identifiants de connexion - EduPlan", 20, 20)
+
+    doc.setFontSize(12)
+    doc.text(`Nom: ${selectedTeacher.first_name} ${selectedTeacher.last_name}`, 20, 40)
+    doc.text(`Identifiant: ${accessData.username}`, 20, 50)
+    doc.text(`Mot de passe: ${accessData.password === "••••••••" ? "[Inchangé]" : accessData.password}`, 20, 60)
+
+    doc.save(`identifiants-${selectedTeacher.last_name}.pdf`)
+
+    toast({
+      title: "PDF téléchargé",
+      description: "Les identifiants ont été téléchargés en PDF",
+    })
+    setIsAccessDialogOpen(false)
   }
 
   const handlePrintPDF = () => {
@@ -877,6 +955,66 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
         variant: "destructive",
       })
     }
+  }
+
+  function openTeacherEditDialog(teacher: Teacher) {
+    setSelectedTeacher(teacher)
+    setTeacherEditFormData({
+      first_name: teacher.first_name,
+      last_name: teacher.last_name,
+      email: teacher.email || "",
+      phone: teacher.phone || "",
+      subject: teacher.subject || "",
+    })
+    setIsTeacherEditDialogOpen(true)
+  }
+
+  async function handleUpdateTeacherInfo() {
+    if (!selectedTeacher) return
+
+    const supabase = createClient()
+
+    const { error } = await supabase
+      .from("teachers")
+      .update({
+        first_name: teacherEditFormData.first_name,
+        last_name: teacherEditFormData.last_name,
+        email: teacherEditFormData.email || null,
+        phone: teacherEditFormData.phone || null,
+        subject: teacherEditFormData.subject || null,
+      })
+      .eq("id", selectedTeacher.id)
+
+    if (error) {
+      console.error("[v0] Error updating teacher:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier le professeur",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // If teacher has a profile, update profile too
+    if (selectedTeacher.profile_id) {
+      await supabase
+        .from("profiles")
+        .update({
+          first_name: teacherEditFormData.first_name,
+          last_name: teacherEditFormData.last_name,
+          email: teacherEditFormData.email || null,
+          phone: teacherEditFormData.phone || null,
+        })
+        .eq("id", selectedTeacher.profile_id)
+    }
+
+    toast({
+      title: "Succès",
+      description: "Le professeur a été modifié avec succès",
+    })
+
+    setIsTeacherEditDialogOpen(false)
+    fetchData()
   }
 
   return (
@@ -1071,7 +1209,11 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
                           <>
                             <DropdownMenuItem onClick={() => openEditDialog(teacher)}>
                               <Plus className="mr-2 h-4 w-4" />
-                              Modifier
+                              Modifier (Info basique)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openTeacherEditDialog(teacher)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Modifier (Infos générales)
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openAccessDialog(teacher)}>
                               <Key className="mr-2 h-4 w-4" />
@@ -1437,9 +1579,9 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
       <Dialog open={isAccessDialogOpen} onOpenChange={setIsAccessDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Configurer l'accès</DialogTitle>
+            <DialogTitle>Gérer les accès</DialogTitle>
             <DialogDescription>
-              Définissez les identifiants de connexion pour {selectedTeacher?.first_name} {selectedTeacher?.last_name}
+              Gérer les identifiants de connexion pour {selectedTeacher?.first_name} {selectedTeacher?.last_name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1453,38 +1595,28 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
             </div>
             <div>
               <Label htmlFor="password">Mot de passe</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="password"
-                  type="text"
-                  value={accessData.password}
-                  onChange={(e) => setAccessData({ ...accessData, password: e.target.value })}
-                  placeholder="Saisir un nouveau mot de passe"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setAccessData({ ...accessData, password: generateStrongPassword(8) })}
-                >
-                  <Key className="h-4 w-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Cliquez sur l'icône pour générer un mot de passe fort aléatoire.
-              </p>
+              <Input
+                id="password"
+                type="text"
+                placeholder="Laisser vide pour ne pas modifier"
+                value={accessData.password}
+                onChange={(e) => setAccessData({ ...accessData, password: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Laissez vide pour conserver le mot de passe actuel</p>
             </div>
-            <Button onClick={handleUpdateCredentials} className="w-full">
-              Enregistrer les identifiants
-            </Button>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={handleSendEmail} disabled={!selectedTeacher?.email}>
+            <Button variant="outline" onClick={() => setIsAccessDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleUpdateCredentials}>Enregistrer</Button>
+            <Button variant="secondary" onClick={handleSendCredentials}>
               <Mail className="mr-2 h-4 w-4" />
               Envoyer par email
             </Button>
-            <Button variant="outline" onClick={handlePrintPDF}>
+            <Button variant="secondary" onClick={handleDownloadPDF}>
               <FileText className="mr-2 h-4 w-4" />
-              Imprimer en PDF
+              Télécharger PDF
             </Button>
           </DialogFooter>
         </DialogContent>

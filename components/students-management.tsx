@@ -34,18 +34,17 @@ interface Student {
   id: string
   first_name: string
   last_name: string
-  email: string | null
-  phone: string | null
-  class_id: string | null
-  role: "eleve" | "delegue" | "eco-delegue" // Added "eleve" role
+  email?: string // Changed to optional
+  phone?: string // Changed to optional
+  class_id?: string // Changed to optional
+  role: "eleve" | "delegue" | "eco-delegue"
   can_create_subrooms: boolean
   classes?: { name: string }
   username?: string
   password_hash?: string
-  profile_id?: string | null // Made nullable for "élève" role
-  class_name?: string // Added class_name to Student interface
-  is_deleted?: boolean // Added is_deleted field
-  birth_date?: string | null // Added birth_date
+  profile_id?: string | null
+  class_name?: string
+  is_deleted?: boolean
 }
 
 interface StudentsManagementProps {
@@ -136,7 +135,6 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
     last_name: "",
     email: "",
     phone: "",
-    birth_date: "",
   })
 
   useEffect(() => {
@@ -465,7 +463,6 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
           role: "eleve",
           profile_id: null,
           username: null,
-          password_hash: null,
         })
         .in("id", selectedStudents)
 
@@ -790,7 +787,6 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
           role: "eleve",
           profile_id: null,
           username: null,
-          password_hash: null,
         })
         .eq("id", student.id)
 
@@ -976,7 +972,6 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
       last_name: student.last_name,
       email: student.email || "",
       phone: student.phone || "",
-      birth_date: student.birth_date || "",
     })
     setIsEditDialogOpen(true)
   }
@@ -993,7 +988,6 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
         last_name: editFormData.last_name,
         email: editFormData.email || null,
         phone: editFormData.phone || null,
-        birth_date: editFormData.birth_date || null,
       })
       .eq("id", selectedStudent.id)
 
@@ -1878,15 +1872,6 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
                 type="tel"
                 value={editFormData.phone}
                 onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-birth-date">Date de naissance</Label>
-              <Input
-                id="edit-birth-date"
-                type="date"
-                value={editFormData.birth_date}
-                onChange={(e) => setEditFormData({ ...editFormData, birth_date: e.target.value })}
               />
             </div>
           </div>
