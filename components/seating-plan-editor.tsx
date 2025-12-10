@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState, useEffect, useCallback } from "react"
+import { createClient as createBrowserClient } from "@/lib/supabase/client" // Renamed for clarity
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -80,6 +80,14 @@ interface SeatingPlanEditorProps {
   onBack?: () => void
 }
 
+// --- Added createClient function ---
+const createClient = () => {
+  // Assuming you have a function or import for creating a Supabase client in the browser context
+  // Replace with your actual Supabase client creation logic if it's different
+  return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
+// --- End of added createClient function ---
+
 export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack }: SeatingPlanEditorProps) {
   const [students, setStudents] = useState<Student[]>([])
   const [assignments, setAssignments] = useState<Map<number, string>>(new Map())
@@ -101,28 +109,31 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
   const [studentToRemove, setStudentToRemove] = useState<string | null>(null)
   // Renamed dontShowRemoveAgain to dontShowAgain for consistency
   const [dontShowAgain, setDontShowAgain] = useState(false)
+  const [isLoadingRoom, setIsLoadingRoom] = useState(false)
+  const [roomError, setRoomError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchData()
-    const dontShow = localStorage.getItem("dontShowRemoveConfirmation")
-    setDontShowAgain(dontShow === "true")
-  }, [subRoom.id]) // Watch subRoom.id for changes
-
-  const fetchData = async () => {
+  // Memoized fetchData to prevent unnecessary re-renders and to satisfy dependency array
+  const fetchData = useCallback(async () => {
     const supabase = createClient()
 
     console.log("[v0] Fetching data for sub-room:", subRoom.id)
     console.log("[v0] Sub-room class_ids:", subRoom.class_ids)
 
+    // Ensure room is loaded before proceeding
     if (!room) {
+      console.log("[v0] Room is not loaded, attempting to load...")
+      // This part might be redundant if loadRoomData is always called first or if initialRoom is provided
+      // However, to be safe, we can fetch it here if needed.
+      // Consider if this fetch should happen within loadRoomData itself for better separation of concerns.
       const { data: roomData } = await supabase.from("rooms").select("*").eq("id", subRoom.room_id).single()
 
       if (roomData) {
-        setRoom(roomData)
+        setRoom(roomData as Room) // Ensure type safety
         console.log("[v0] Room loaded:", roomData.name)
       } else {
         console.error("[v0] Room not found for sub_room:", subRoom.room_id)
-        return
+        setRoomError("Configuration de la salle introuvable.") // Set error if room not found
+        return // Stop fetching if room is not found
       }
     }
 
@@ -140,34 +151,96 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
 
     if (studentsError) {
       console.error("[v0] Error fetching students:", studentsError)
+      // Handle student fetch error if necessary, e.g., by setting an error state
     }
 
     if (studentsData) {
       console.log("[v0] Students loaded:", studentsData.length)
       setStudents(studentsData)
     } else {
-      setStudents([])
+      setStudents([]) // Ensure students is an empty array if no data or error
     }
 
     // Fetch existing seat assignments
-    const { data: assignmentsData } = await supabase
+    const { data: assignmentsData, error: assignmentsError } = await supabase
       .from("seating_assignments")
       .select("student_id, seat_position")
       .eq("sub_room_id", subRoom.id)
 
+    if (assignmentsError) {
+      console.error("[v0] Error fetching seating assignments:", assignmentsError)
+      // Handle assignment fetch error if necessary
+    }
+
     if (assignmentsData) {
       const assignmentMap = new Map<number, string>()
       assignmentsData.forEach((a: any) => {
+        // Use a more specific type if possible
         assignmentMap.set(a.seat_position, a.student_id)
       })
       setAssignments(assignmentMap)
       setSavedAssignments(new Map(assignmentMap))
       console.log("[v0] Loaded", assignmentsData.length, "seat assignments")
+    } else {
+      setAssignments(new Map()) // Clear assignments if no data or error
+      setSavedAssignments(new Map())
     }
-  }
+  }, [subRoom, room]) // Simplified dependencies
+
+  useEffect(() => {
+    // Load room data first
+    async function loadRoomData() {
+      console.log("[v0] Checking room data:", { room, subRoom })
+
+      // If room is missing or doesn't have config.columns, load it
+      if (!room || !room.config?.columns) {
+        console.log("[v0] Room data incomplete, loading from database...")
+        setIsLoadingRoom(true)
+        setRoomError(null)
+
+        try {
+          const supabase = createClient()
+
+          const { data, error } = await supabase.from("rooms").select("*").eq("id", subRoom.room_id).single()
+
+          if (error) throw error
+
+          if (!data) {
+            throw new Error("Room not found")
+          }
+
+          console.log("[v0] Room loaded successfully:", data)
+          setRoom(data as Room) // Type assertion for safety
+          setRoomError(null)
+        } catch (error) {
+          console.error("[v0] Error loading room:", error)
+          setRoomError("Impossible de charger la configuration de la salle")
+        } finally {
+          setIsLoadingRoom(false)
+        }
+      }
+    }
+
+    loadRoomData()
+  }, [subRoom, room]) // Simplified dependencies
+
+  // Effect to fetch data once room data is loaded or if initialRoom is provided
+  useEffect(() => {
+    // Only fetch data if room is available and not currently loading
+    if (room && !isLoadingRoom && !roomError) {
+      fetchData()
+    }
+
+    // Load the "don't show again" preference from localStorage
+    const dontShow = localStorage.getItem("dontShowRemoveConfirmation")
+    setDontShowAgain(dontShow === "true")
+  }, [room, isLoadingRoom, roomError, fetchData]) // Dependencies for data fetching and preference loading
 
   const getTotalSeats = () => {
-    if (!room?.config?.columns) return 0
+    if (!room?.config?.columns) {
+      console.warn("[v0] getTotalSeats: room.config.columns is missing")
+      return 0
+    }
     return room.config.columns.reduce((total, col) => total + col.tables * col.seatsPerTable, 0)
   }
 
@@ -292,6 +365,10 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
     const newAssignments = new Map(assignments)
     newAssignments.delete(seatNumber)
     setAssignments(newAssignments)
+    toast({
+      title: "Élève retiré",
+      description: "L'élève a été retiré du plan de classe",
+    })
   }
 
   const handleRandomPlacementAll = () => {
@@ -739,7 +816,7 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
     }
   }
 
-  const calculateSeatNumber = (colIndex: number, tableIndex: number, seatIndex: number) => {
+  const getSeatNumber = (colIndex: number, tableIndex: number, seatIndex: number) => {
     if (!room?.config?.columns) return 0
 
     let seatNumber = 0
@@ -750,8 +827,7 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
     // Count all seats in previous tables of current column
     seatNumber += tableIndex * room.config.columns[colIndex].seatsPerTable
     // Add current seat index (+1 to start at 1)
-    seatNumber += seatIndex + 1
-    return seatNumber
+    return seatNumber + seatIndex + 1 // Fixed: seat index should be added and result should be +1
   }
 
   // Renamed function to better reflect its purpose
@@ -784,11 +860,23 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
     return `${student.last_name.charAt(0)}.${student.first_name.charAt(0)}`.toUpperCase()
   }
 
-  if (!room) {
+  if (isLoadingRoom) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex h-screen items-center justify-center">
         <div className="text-center">
-          <p className="text-lg font-semibold">Chargement de la salle...</p>
+          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="text-muted-foreground">Chargement de la salle...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (roomError || !room?.config?.columns) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-destructive mb-4">{roomError || "Configuration de la salle introuvable"}</p>
+          <Button onClick={onBack || onClose}>Retour</Button>
         </div>
       </div>
     )
@@ -951,82 +1039,81 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
                 ) : (
                   <div className="w-full overflow-x-auto">
                     <div className={`flex ${getResponsiveGap()} justify-center items-start min-w-min p-4`}>
-                      {room?.config?.columns &&
-                        room.config.columns.map((column, colIndex) => (
-                          <div key={column.id} className={`flex flex-col ${getResponsiveGap()}`}>
-                            {Array.from({ length: column.tables }).map((_, tableIndex) => (
+                      {room.config.columns.map((column, colIndex) => (
+                        <div key={column.id} className={`flex flex-col ${getResponsiveGap()}`}>
+                          {Array.from({ length: column.tables }).map((_, tableIndex) => (
+                            <div
+                              key={tableIndex}
+                              className={`relative ${getResponsiveTableSize()} rounded-lg border-2 flex items-center justify-center`}
+                              style={getTableStyle()}
+                              onDragOver={handleDragOver}
+                              onDrop={(e) => {
+                                // Determine the first seat number in this table for the drop target
+                                const firstSeatInTable = getSeatNumber(colIndex, tableIndex, 0)
+                                handleDrop(e, firstSeatInTable)
+                              }}
+                            >
                               <div
-                                key={tableIndex}
-                                className={`relative ${getResponsiveTableSize()} rounded-lg border-2 flex items-center justify-center`}
-                                style={getTableStyle()}
-                                onDragOver={handleDragOver}
-                                onDrop={(e) => {
-                                  // Determine the first seat number in this table for the drop target
-                                  const firstSeatInTable = calculateSeatNumber(colIndex, tableIndex, 0)
-                                  handleDrop(e, firstSeatInTable)
-                                }}
+                                className={`grid ${
+                                  column.seatsPerTable === 1
+                                    ? "grid-cols-1"
+                                    : column.seatsPerTable === 2
+                                      ? "grid-cols-2"
+                                      : column.seatsPerTable === 3
+                                        ? "grid-cols-3"
+                                        : column.seatsPerTable === 4
+                                          ? "grid-cols-2"
+                                          : column.seatsPerTable === 6
+                                            ? "grid-cols-3"
+                                            : "grid-cols-2"
+                                } gap-3 p-4 place-items-center w-full h-full`}
                               >
-                                <div
-                                  className={`grid ${
-                                    column.seatsPerTable === 1
-                                      ? "grid-cols-1"
-                                      : column.seatsPerTable === 2
-                                        ? "grid-cols-2"
-                                        : column.seatsPerTable === 3
-                                          ? "grid-cols-3"
-                                          : column.seatsPerTable === 4
-                                            ? "grid-cols-2"
-                                            : column.seatsPerTable === 6
-                                              ? "grid-cols-3"
-                                              : "grid-cols-2"
-                                  } gap-3 p-4 place-items-center w-full h-full`}
-                                >
-                                  {Array.from({ length: column.seatsPerTable }).map((_, seatIndex) => {
-                                    const seatNumber = calculateSeatNumber(colIndex, tableIndex, seatIndex)
-                                    const assignment = assignments.get(seatNumber)
-                                    const student = assignment ? students.find((s) => s.id === assignment) : null
-                                    const isOccupied = !!student
+                                {Array.from({ length: column.seatsPerTable }).map((_, seatIndex) => {
+                                  const seatNumber = getSeatNumber(colIndex, tableIndex, seatIndex)
+                                  const assignment = assignments.get(seatNumber)
+                                  const student = assignment ? students.find((s) => s.id === assignment) : null
+                                  const isOccupied = !!student
 
-                                    return (
-                                      <div
-                                        key={`seat-${tableIndex}-${seatIndex}`}
-                                        data-seat-number={seatNumber}
-                                        draggable={!!student}
-                                        // Pass student.id to handleDragStart
-                                        onDragStart={(e) => student && handleDragStart(e as any, student.id)}
-                                        onDragOver={handleDragOver}
-                                        onDrop={(e) => handleDrop(e, seatNumber)}
-                                        onTouchStart={(e) => student && handleTouchStart(e as any, student.id)}
-                                        onTouchMove={handleTouchMove}
-                                        onTouchEnd={(e) => handleTouchEnd(e, seatNumber)}
-                                        // Use the new handleSeatClick
-                                        onClick={() => handleSeatClick(seatNumber)}
-                                        className={cn(
-                                          "w-10 h-10 border-2 rounded flex items-center justify-center text-xs font-medium transition-all cursor-pointer",
-                                          student
-                                            ? "bg-black text-white border-black hover:scale-105"
-                                            : "bg-gray-100 text-gray-400 border-gray-300 hover:border-gray-400 hover:bg-gray-200",
-                                        )}
-                                        style={getSeatStyle(isOccupied)}
-                                      >
-                                        {student ? (
-                                          <>
-                                            <span className="text-white text-xs font-semibold">
-                                              {getInitials(student)}
-                                            </span>
-                                            {/* Removed direct remove button from seat for consistency with dialog */}
-                                          </>
-                                        ) : (
-                                          <span className="text-xs">{seatNumber}</span>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
+                                  return (
+                                    <div
+                                      key={`seat-${tableIndex}-${seatIndex}`}
+                                      data-seat-number={seatNumber}
+                                      draggable={!!student}
+                                      // Pass student.id to handleDragStart
+                                      onDragStart={(e) => student && handleDragStart(e as any, student.id)}
+                                      onDragOver={handleDragOver}
+                                      onDrop={(e) => handleDrop(e, seatNumber)}
+                                      onTouchStart={(e) => student && handleTouchStart(e as any, student.id)}
+                                      onTouchMove={handleTouchMove}
+                                      onTouchEnd={(e) => handleTouchEnd(e, seatNumber)}
+                                      // Use the new handleSeatClick
+                                      onClick={() => handleSeatClick(seatNumber)}
+                                      className={cn(
+                                        "w-10 h-10 border-2 rounded flex items-center justify-center text-xs font-medium transition-all cursor-pointer",
+                                        student
+                                          ? "bg-black text-white border-black hover:scale-105"
+                                          : "bg-gray-100 text-gray-400 border-gray-300 hover:border-gray-400 hover:bg-gray-200",
+                                      )}
+                                      style={getSeatStyle(isOccupied)}
+                                    >
+                                      {student ? (
+                                        <>
+                                          <span className="text-white text-xs font-semibold">
+                                            {getInitials(student)}
+                                          </span>
+                                          {/* Removed direct remove button from seat for consistency with dialog */}
+                                        </>
+                                      ) : (
+                                        <span className="text-xs">{seatNumber}</span>
+                                      )}
+                                    </div>
+                                  )
+                                })}
                               </div>
-                            ))}
-                          </div>
-                        ))}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

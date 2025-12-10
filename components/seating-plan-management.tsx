@@ -571,7 +571,7 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
         {isEditorOpen && selectedSubRoom && (
           <SeatingPlanEditor
             subRoom={selectedSubRoom}
-            room={selectedSubRoom.rooms}
+            room={undefined}
             onBack={() => {
               setIsEditorOpen(false)
               setSelectedSubRoom(null)
