@@ -7,8 +7,21 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-geist" })
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
 
 export const metadata = {
-  title: "Classroom Seating",
-  description: "Seating plan management system",
+  title: "EduPlan - Une école. Un Plan",
+  description: "Système de gestion de plans de classe",
+  icons: {
+    icon: [
+      {
+        url: "/images/logo-edu-plan-remove.png",
+        sizes: "any",
+      },
+    ],
+    apple: [
+      {
+        url: "/images/logo-edu-plan-remove.png",
+      },
+    ],
+  },
     generator: 'v0.app'
 }
 

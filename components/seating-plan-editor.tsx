@@ -11,6 +11,17 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { toast } from "@/components/ui/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
   ArrowLeft,
   Save,
   RotateCcw,
@@ -26,6 +37,7 @@ import {
   User,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import cn from "classnames"
 
 interface Student {
   id: string
@@ -63,23 +75,24 @@ interface SeatAssignment {
 
 interface SeatingPlanEditorProps {
   subRoom: SubRoom
-  onBack: () => void
+  room: Room
+  onClose: () => void
 }
 
-export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
-  const [room, setRoom] = useState<Room | null>(null)
+export function SeatingPlanEditor({ subRoom, room, onClose }: SeatingPlanEditorProps) {
   const [students, setStudents] = useState<Student[]>([])
   const [assignments, setAssignments] = useState<Map<number, string>>(new Map())
   const [savedAssignments, setSavedAssignments] = useState<Map<number, string>>(new Map())
   const [draggedStudent, setDraggedStudent] = useState<Student | null>(null)
-  const [touchedStudent, setTouchedStudent] = useState<Student | null>(null)
   const [selectedSeatForDialog, setSelectedSeatForDialog] = useState<number | null>(null)
-  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [shareEmail, setShareEmail] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [completeMethod, setCompleteMethod] = useState<"random" | "asc" | "desc">("random")
+  const [showRemoveConfirmation, setShowRemoveConfirmation] = useState(false)
+  const [studentToRemove, setStudentToRemove] = useState<{ studentId: string; seatNumber: number } | null>(null)
+  const [dontShowRemoveAgain, setDontShowRemoveAgain] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -89,11 +102,6 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
     const supabase = createClient()
 
     console.log("[v0] Fetching data for sub-room:", subRoom.id)
-
-    // Fetch room details
-    const { data: roomData } = await supabase.from("rooms").select("*").eq("id", subRoom.room_id).single()
-
-    if (roomData) setRoom(roomData)
 
     // Fetch students from all classes in the sub-room
     const { data: studentsData } = await supabase
@@ -298,27 +306,11 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
         throw deleteError
       }
 
-      const assignmentsToInsert = Array.from(assignments.entries()).map(([seatNumber, studentId]) => {
-        // Calculate position from seat number based on room layout
-        const tableIndex = Math.floor(
-          (seatNumber - 1) / room.config.columns.reduce((total, col) => total + col.tables * col.seatsPerTable, 0),
-        )
-        const seatInTable =
-          (seatNumber - 1) % room.config.columns.reduce((total, col) => total + col.tables * col.seatsPerTable, 0)
-        const column = Math.floor(tableIndex / room.config.columns.length)
-        const row = tableIndex % room.config.columns.length
-
-        return {
-          sub_room_id: subRoom.id,
-          student_id: studentId,
-          seat_position: {
-            column,
-            table: tableIndex,
-            seat: seatInTable,
-            seatNumber,
-          },
-        }
-      })
+      const assignmentsToInsert = Array.from(assignments.entries()).map(([seatNumber, studentId]) => ({
+        sub_room_id: subRoom.id,
+        student_id: studentId,
+        seat_position: seatNumber, // Just the seat number as integer
+      }))
 
       console.log("[v0] Assignments to insert:", assignmentsToInsert)
 
@@ -460,7 +452,6 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
 
   const handleTouchStart = (e: React.TouchEvent, student: Student) => {
     const touch = e.touches[0]
-    setTouchStartPos({ x: touch.clientX, y: touch.clientY })
     setDraggedStudent(student)
     setIsDragging(true)
   }
@@ -471,10 +462,9 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   }
 
   const handleTouchEnd = (e: React.TouchEvent, targetSeatNumber?: number) => {
-    if (!isDragging || !draggedStudent || !touchStartPos) {
+    if (!isDragging || !draggedStudent) {
       setIsDragging(false)
       setDraggedStudent(null)
-      setTouchStartPos(null)
       return
     }
 
@@ -510,29 +500,50 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
 
     setIsDragging(false)
     setDraggedStudent(null)
-    setTouchStartPos(null)
   }
 
-  const handleSeatClick = (seatNumber: number) => {
-    setSelectedSeatForDialog(seatNumber)
-  }
+  const handleSeatClick = (seatNumber: number, student: Student | undefined) => {
+    if (student) {
+      // Check if user disabled confirmation
+      const dontShow = localStorage.getItem("dontShowRemoveConfirmation") === "true"
 
-  const handleAssignStudentFromDialog = (studentId: string) => {
-    if (selectedSeatForDialog === null) return
-
-    const newAssignments = new Map(assignments)
-
-    // Remove student from any previous seat
-    for (const [seat, id] of newAssignments.entries()) {
-      if (id === studentId) {
-        newAssignments.delete(seat)
+      if (dontShow) {
+        // Remove directly without confirmation
+        removeStudentFromSeat(seatNumber)
+      } else {
+        // Show confirmation dialog
+        setStudentToRemove({ studentId: student.id, seatNumber })
+        setShowRemoveConfirmation(true)
       }
+    } else {
+      // If seat is empty, show student selection dialog
+      setSelectedSeatForDialog(seatNumber)
     }
+  }
 
-    // Assign to selected seat
-    newAssignments.set(selectedSeatForDialog, studentId)
+  const removeStudentFromSeat = (seatNumber: number) => {
+    const newAssignments = new Map(assignments)
+    newAssignments.delete(seatNumber)
     setAssignments(newAssignments)
-    setSelectedSeatForDialog(null)
+    toast({
+      title: "Élève retiré",
+      description: "L'élève a été retiré du plan de classe",
+    })
+  }
+
+  const confirmRemoveStudent = () => {
+    if (studentToRemove) {
+      removeStudentFromSeat(studentToRemove.seatNumber)
+
+      // Save "don't show again" preference
+      if (dontShowRemoveAgain) {
+        localStorage.setItem("dontShowRemoveConfirmation", "true")
+      }
+
+      setShowRemoveConfirmation(false)
+      setStudentToRemove(null)
+      setDontShowRemoveAgain(false)
+    }
   }
 
   const getTableStyle = () => {
@@ -543,8 +554,6 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   }
 
   const getResponsiveTableSize = () => {
-    if (!room) return "w-32 h-24"
-
     const cols = room.config.columns.length
 
     if (cols <= 2) return "w-36 h-26"
@@ -553,8 +562,6 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   }
 
   const getResponsiveSeatSize = () => {
-    if (!room) return "w-8 h-8"
-
     const cols = room.config.columns.length
 
     // Places plus petites et carrées
@@ -564,7 +571,6 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   }
 
   const getResponsiveGap = () => {
-    if (!room) return "gap-4"
     const columnCount = room.config.columns.length
 
     if (columnCount <= 2) return "gap-6 md:gap-8"
@@ -588,7 +594,6 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   }
 
   const getBoardAlignment = () => {
-    if (!room) return ""
     switch (room.board_position) {
       case "top":
         return "justify-center items-start"
@@ -604,7 +609,6 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
   }
 
   const getSeatNumber = (colIndex: number, tableIndex: number, seatIndex: number) => {
-    if (!room) return 0
     let seatNumber = 0
     // Count all seats in previous columns
     for (let i = 0; i < colIndex; i++) {
@@ -641,17 +645,13 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
     }
   }
 
-  if (!room) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>
-  }
-
   return (
     <div className="min-h-screen bg-white dark:bg-black">
       <div className="p-6 w-full">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={onBack} className="hover:bg-gray-100 dark:hover:bg-gray-900">
+            <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 dark:hover:bg-gray-900">
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
@@ -798,10 +798,7 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                           <div
                             key={tableIndex}
                             className={`relative ${getResponsiveTableSize()} rounded-lg border-2 flex items-center justify-center`}
-                            style={{
-                              backgroundColor: "#FFFFFF", // Tables blanches
-                              borderColor: "#000000", // Bordure noire
-                            }}
+                            style={getTableStyle()}
                             onDragOver={handleDragOver}
                             onDrop={(e) => {
                               const seatNumber = getSeatNumber(colIndex, tableIndex, 0)
@@ -834,17 +831,19 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                                     key={`seat-${tableIndex}-${seatIndex}`}
                                     data-seat-number={seatNumber}
                                     draggable={!!student}
-                                    onDragStart={() => student && handleDragStart(student)}
+                                    onDragStart={(e) => handleDragStart(student)}
                                     onDragOver={handleDragOver}
                                     onDrop={(e) => handleDrop(e, seatNumber)}
-                                    onTouchStart={(e) => student && handleTouchStart(e, student)}
+                                    onTouchStart={(e) => handleTouchStart(e, student)}
+                                    onTouchMove={handleTouchMove}
                                     onTouchEnd={(e) => handleTouchEnd(e, seatNumber)}
-                                    onClick={() => !student && handleSeatClick(seatNumber)}
-                                    className={`
-                                      ${getResponsiveSeatSize()} rounded-lg border-2 flex items-center justify-center relative
-                                      transition-all
-                                      ${student ? "cursor-move hover:shadow-lg" : "cursor-pointer hover:opacity-80"}
-                                    `}
+                                    onClick={() => handleSeatClick(seatNumber, student)}
+                                    className={cn(
+                                      "w-10 h-10 border-2 rounded flex items-center justify-center text-xs font-medium transition-all cursor-pointer",
+                                      student
+                                        ? "bg-black text-white border-black hover:scale-105"
+                                        : "bg-gray-100 text-gray-400 border-gray-300 hover:border-gray-400 hover:bg-gray-200",
+                                    )}
                                     style={getSeatStyle(isOccupied)}
                                   >
                                     {student ? (
@@ -1015,7 +1014,12 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                   key={student.id}
                   variant="outline"
                   className="w-full justify-start text-left h-auto py-3 bg-transparent"
-                  onClick={() => handleAssignStudentFromDialog(student.id)}
+                  onClick={() => {
+                    const newAssignments = new Map(assignments)
+                    newAssignments.set(selectedSeatForDialog!, student.id)
+                    setAssignments(newAssignments)
+                    setSelectedSeatForDialog(null)
+                  }}
                 >
                   <div className="flex flex-col items-start gap-1">
                     <div className="font-medium">
@@ -1089,6 +1093,43 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Confirmation dialog for removing students */}
+      <AlertDialog open={showRemoveConfirmation} onOpenChange={setShowRemoveConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retirer l'élève du plan ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous retirer cet élève du plan de classe ? Il sera replacé dans la liste des élèves non placés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center space-x-2 my-4">
+            <Checkbox
+              id="dontShowAgain"
+              checked={dontShowRemoveAgain}
+              onCheckedChange={(checked) => setDontShowRemoveAgain(checked === true)}
+            />
+            <label
+              htmlFor="dontShowAgain"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Ne plus afficher cette confirmation
+            </label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setShowRemoveConfirmation(false)
+                setStudentToRemove(null)
+                setDontShowRemoveAgain(false)
+              }}
+            >
+              Non
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemoveStudent}>Oui</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
