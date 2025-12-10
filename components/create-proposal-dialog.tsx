@@ -30,6 +30,7 @@ interface SubRoom {
   id: string
   name: string
   seat_assignments: any
+  room_id: string
 }
 
 interface Teacher {
@@ -135,9 +136,9 @@ export function CreateProposalDialog({
 
       const { data: subRoomsData } = await supabase
         .from("sub_rooms")
-        .select("id, name, seat_assignments")
+        .select("id, name, seat_assignments, room_id")
         .contains("class_ids", [classId])
-        .eq("created_by", teacherData.profile_id)
+        .or(`created_by.eq.${teacherData.profile_id},teacher_id.eq.${selectedTeacherId}`)
         .order("name")
 
       if (subRoomsData) {
@@ -190,15 +191,7 @@ export function CreateProposalDialog({
           seatAssignments = subRoom.seat_assignments || {}
 
           // Get room_id from the sub_room
-          const { data: subRoomData } = await supabase
-            .from("sub_rooms")
-            .select("room_id")
-            .eq("id", selectedSubRoomId)
-            .single()
-
-          if (subRoomData) {
-            roomId = subRoomData.room_id
-          }
+          roomId = subRoom.room_id
         }
       }
 

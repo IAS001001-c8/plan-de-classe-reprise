@@ -549,7 +549,7 @@ export function RoomsManagement({ initialRooms, establishmentId }: RoomsManageme
                           {room.code}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {columns.length} col. • {totalSeats} places
+                          {(Array.isArray(columns) ? columns : []).length} col. • {totalSeats} places
                         </span>
                       </div>
                     </div>
