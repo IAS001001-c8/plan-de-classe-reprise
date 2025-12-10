@@ -558,13 +558,6 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
         <CreateSubRoomDialog
           open={isCreateDialogOpen}
           onOpenChange={setIsCreateDialogOpen}
-          onSuccess={() => {
-            fetchSubRooms()
-            toast({
-              title: "Succès",
-              description: "Sous-salle créée avec succès",
-            })
-          }}
           establishmentId={establishmentId}
         />
 
