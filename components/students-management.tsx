@@ -20,7 +20,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ArrowLeft, Plus, Eye, Key, Mail, FileText, Upload, MoreHorizontal, Users, Pencil } from "lucide-react"
+import { ArrowLeft, Plus, Eye, Key, Mail, FileText, Upload, MoreHorizontal, Users, Pencil, Shuffle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ImportStudentsDialog } from "@/components/import-students-dialog"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog" // Added import for confirmation dialog
@@ -45,6 +45,7 @@ interface Student {
   profile_id?: string | null
   class_name?: string
   is_deleted?: boolean
+  birth_date?: string | null // Added birth_date
 }
 
 interface StudentsManagementProps {
@@ -79,6 +80,17 @@ function generateStrongPassword(length = 8): string {
     .split("")
     .sort(() => Math.random() - 0.5)
     .join("")
+}
+
+// import { Shuffle } from 'lucide-react'
+
+function generateRandomPassword(length = 8): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+  let password = ""
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return password
 }
 
 export function StudentsManagement({ establishmentId, userRole, userId, onBack }: StudentsManagementProps) {
@@ -452,17 +464,18 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
       const studentsWithProfiles = studentsToDemote.filter((s) => s.profile_id)
 
       if (studentsWithProfiles.length > 0) {
+        const supabase = createClient()
         const profileIds = studentsWithProfiles.map((s) => s.profile_id).filter(Boolean)
         await supabase.from("profiles").delete().in("id", profileIds)
       }
 
-      // Update students to "eleve" role and remove profile_id
+      // Update students to "eleve" role and remove profile_id (username doesn't exist in students table)
+      const supabase = createClient()
       const { error } = await supabase
         .from("students")
         .update({
           role: "eleve",
           profile_id: null,
-          username: null,
         })
         .in("id", selectedStudents)
 
@@ -474,9 +487,9 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
       })
       setIsBulkDemoteDialogOpen(false)
       setSelectedStudents([])
-      fetchData() // Auto-refresh after bulk demotion
+      fetchData() // Auto-refresh after demotion
     } catch (error) {
-      console.error("[v0] Error bulk demoting students:", error)
+      console.error("[v0] Error bulk demoting:", error)
       toast({
         title: "Erreur",
         description: "Impossible de rétrograder les élèves",
@@ -775,22 +788,33 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
 
   async function handleDemoteStudent(student: Student) {
     try {
+      console.log("[v0] Demoting student:", student.id)
+
       // Delete profile if exists
       if (student.profile_id) {
-        await supabase.from("profiles").delete().eq("id", student.profile_id)
+        const supabase = createClient()
+        const { error: profileError } = await supabase.from("profiles").delete().eq("id", student.profile_id)
+
+        if (profileError) {
+          console.error("[v0] Error deleting profile:", profileError)
+          throw profileError
+        }
       }
 
-      // Update student to "eleve" role and remove profile_id
+      // Update student to "eleve" role and remove profile_id only (username doesn't exist in students table)
+      const supabase = createClient()
       const { error } = await supabase
         .from("students")
         .update({
           role: "eleve",
           profile_id: null,
-          username: null,
         })
         .eq("id", student.id)
 
-      if (error) throw error
+      if (error) {
+        console.error("[v0] Error updating student:", error)
+        throw error
+      }
 
       toast({
         title: "Succès",
@@ -803,7 +827,7 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
       console.error("[v0] Error demoting student:", error)
       toast({
         title: "Erreur",
-        description: "Impossible de rétrograder l'élève",
+        description: error instanceof Error ? error.message : "Impossible de rétrograder l'élève",
         variant: "destructive",
       })
     }
@@ -1579,11 +1603,11 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
 
       {/* Access Dialog */}
       <Dialog open={isAccessDialogOpen} onOpenChange={setIsAccessDialogOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Gérer l'accès</DialogTitle>
+            <DialogTitle>Gérer les accès</DialogTitle>
             <DialogDescription>
-              Identifiants pour {selectedStudent?.first_name} {selectedStudent?.last_name}
+              Gérer les identifiants de connexion pour {selectedStudent?.first_name} {selectedStudent?.last_name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1593,6 +1617,7 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
                 id="username"
                 value={accessData.username}
                 onChange={(e) => setAccessData({ ...accessData, username: e.target.value })}
+                className="w-full"
               />
             </div>
             <div>
@@ -1601,40 +1626,38 @@ export function StudentsManagement({ establishmentId, userRole, userId, onBack }
                 <Input
                   id="password"
                   type="text"
+                  placeholder="Laisser vide pour ne pas modifier"
                   value={accessData.password}
                   onChange={(e) => setAccessData({ ...accessData, password: e.target.value })}
-                  placeholder="Saisir un nouveau mot de passe"
+                  className="flex-1"
                 />
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setAccessData({ ...accessData, password: generateStrongPassword(8) })}
+                  size="icon"
+                  onClick={() => setAccessData({ ...accessData, password: generateRandomPassword(8) })}
+                  title="Générer un mot de passe aléatoire"
                 >
-                  <Key className="h-4 w-4" />
+                  <Shuffle className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Définissez un nouveau mot de passe. Cliquez sur l'icône pour générer un mot de passe fort.
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Laissez vide pour conserver le mot de passe actuel</p>
             </div>
           </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-end">
-            <Button
-              variant="outline"
-              onClick={handleSendEmail}
-              className="w-full sm:w-auto bg-transparent"
-              disabled={!selectedStudent?.email}
-            >
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setIsAccessDialogOpen(false)} className="w-full sm:w-auto">
+              Annuler
+            </Button>
+            <Button onClick={handleUpdateCredentials} className="w-full sm:w-auto">
+              Enregistrer
+            </Button>
+            <Button variant="secondary" onClick={handleSendEmail} className="w-full sm:w-auto">
               <Mail className="mr-2 h-4 w-4" />
               Envoyer par email
             </Button>
-            <Button variant="outline" onClick={handlePrintPDF} className="w-full sm:w-auto bg-transparent">
+            <Button variant="secondary" onClick={handlePrintPDF} className="w-full sm:w-auto">
               <FileText className="mr-2 h-4 w-4" />
               Télécharger PDF
-            </Button>
-            <Button onClick={handleUpdateCredentials} className="w-full sm:w-auto">
-              <Key className="mr-2 h-4 w-4" />
-              Enregistrer
             </Button>
           </DialogFooter>
         </DialogContent>

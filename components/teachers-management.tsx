@@ -19,7 +19,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { ArrowLeft, Plus, MoreVertical, Eye, Key, Mail, FileText, Upload, Pencil } from "lucide-react" // Added Pencil and Settings icons import
+import { ArrowLeft, Plus, MoreVertical, Eye, Key, Mail, FileText, Upload, Pencil, Shuffle } from "lucide-react" // Added Shuffle icon import
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { ImportTeachersDialog } from "@/components/import-teachers-dialog"
@@ -36,6 +36,16 @@ interface TeachersManagementProps {
   onBack?: () => void
 }
 
+function generateRandomPassword(length = 8): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+  let password = ""
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return password
+}
+
+// Keep original generateStrongPassword function if needed elsewhere, or remove if this is the only password generation
 function generateStrongPassword(length = 8): string {
   const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   const lowercase = "abcdefghijklmnopqrstuvwxyz"
@@ -489,13 +499,13 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
       if (profileData) {
         setAccessData({
           username: profileData.username || "",
-          password: "••••••••", // Show masked password
+          password: "", // Empty by default
         })
       } else {
         // Fallback if profile doesn't exist
         setAccessData({
           username: `${teacher.first_name.toLowerCase()}.${teacher.last_name.toLowerCase()}`,
-          password: "••••••••",
+          password: "",
         })
       }
     } else {
@@ -541,7 +551,8 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
     try {
       const supabase = createClient()
 
-      if (accessData.password !== "••••••••" && accessData.password.trim() !== "") {
+      if (accessData.password !== "" && accessData.password.trim() !== "") {
+        // Check if password field is not empty
         const { data: hashedPassword, error: hashError } = await supabase.rpc("hash_password", {
           password: accessData.password,
         })
@@ -603,7 +614,8 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
 
     const supabase = createClient()
 
-    if (accessData.password !== "••••••••" && accessData.password.trim() !== "") {
+    if (accessData.password !== "" && accessData.password.trim() !== "") {
+      // Check if password field is not empty
       console.log("[v0] Updating teacher profile with new password")
       const { data: hashedPassword, error: hashError } = await supabase.rpc("hash_password", {
         password: accessData.password,
@@ -693,7 +705,7 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
           recipientEmail: emailToConfirm,
           recipientName: `${selectedTeacher.first_name} ${selectedTeacher.last_name}`,
           username: accessData.username,
-          password: accessData.password === "••••••••" ? "[Mot de passe masqué]" : accessData.password,
+          password: accessData.password === "" ? "[Mot de passe non modifié]" : accessData.password, // Handle empty password case
           userType: "teacher",
         }),
       })
@@ -814,7 +826,7 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
     doc.setFontSize(12)
     doc.text(`Nom: ${selectedTeacher.first_name} ${selectedTeacher.last_name}`, 20, 40)
     doc.text(`Identifiant: ${accessData.username}`, 20, 50)
-    doc.text(`Mot de passe: ${accessData.password === "••••••••" ? "[Inchangé]" : accessData.password}`, 20, 60)
+    doc.text(`Mot de passe: ${accessData.password === "" ? "[Non modifié]" : accessData.password}`, 20, 60) // Updated to reflect empty password
 
     doc.save(`identifiants-${selectedTeacher.last_name}.pdf`)
 
@@ -846,7 +858,7 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
               <div class="field"><span class="label">Nom:</span> ${selectedTeacher.first_name} ${selectedTeacher.last_name}</div>
               <div class="field"><span class="label">Matière:</span> ${selectedTeacher.subject || "N/A"}</div>
               <div class="field"><span class="label">Identifiant:</span> ${accessData.username}</div>
-              <div class="field"><span class="label">Mot de passe:</span> ${accessData.password}</div>
+              <div class="field"><span class="label">Mot de passe:</span> ${accessData.password === "" ? "[Non modifié]" : accessData.password}</div>
             </div>
           </body>
         </html>
@@ -1207,13 +1219,10 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
                         </DropdownMenuItem>
                         {userRole === "vie-scolaire" && (
                           <>
-                            <DropdownMenuItem onClick={() => openEditDialog(teacher)}>
-                              <Plus className="mr-2 h-4 w-4" />
-                              Modifier (Info basique)
-                            </DropdownMenuItem>
+                            {/* Removed duplicate modification option */}
                             <DropdownMenuItem onClick={() => openTeacherEditDialog(teacher)}>
                               <Pencil className="mr-2 h-4 w-4" />
-                              Modifier (Infos générales)
+                              Modifier
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openAccessDialog(teacher)}>
                               <Key className="mr-2 h-4 w-4" />
@@ -1577,7 +1586,7 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
 
       {/* Access Dialog */}
       <Dialog open={isAccessDialogOpen} onOpenChange={setIsAccessDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Gérer les accès</DialogTitle>
             <DialogDescription>
@@ -1591,30 +1600,45 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
                 id="username"
                 value={accessData.username}
                 onChange={(e) => setAccessData({ ...accessData, username: e.target.value })}
+                className="w-full"
               />
             </div>
             <div>
               <Label htmlFor="password">Mot de passe</Label>
-              <Input
-                id="password"
-                type="text"
-                placeholder="Laisser vide pour ne pas modifier"
-                value={accessData.password}
-                onChange={(e) => setAccessData({ ...accessData, password: e.target.value })}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="password"
+                  type="text"
+                  placeholder="Laisser vide pour ne pas modifier"
+                  value={accessData.password}
+                  onChange={(e) => setAccessData({ ...accessData, password: e.target.value })}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setAccessData({ ...accessData, password: generateRandomPassword(8) })}
+                  title="Générer un mot de passe aléatoire"
+                >
+                  <Shuffle className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground mt-1">Laissez vide pour conserver le mot de passe actuel</p>
             </div>
           </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setIsAccessDialogOpen(false)}>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setIsAccessDialogOpen(false)} className="w-full sm:w-auto">
               Annuler
             </Button>
-            <Button onClick={handleUpdateCredentials}>Enregistrer</Button>
-            <Button variant="secondary" onClick={handleSendCredentials}>
+            <Button onClick={handleUpdateCredentials} className="w-full sm:w-auto">
+              Enregistrer
+            </Button>
+            <Button variant="secondary" onClick={handleSendCredentials} className="w-full sm:w-auto">
               <Mail className="mr-2 h-4 w-4" />
               Envoyer par email
             </Button>
-            <Button variant="secondary" onClick={handleDownloadPDF}>
+            <Button variant="secondary" onClick={handleDownloadPDF} className="w-full sm:w-auto">
               <FileText className="mr-2 h-4 w-4" />
               Télécharger PDF
             </Button>
@@ -1643,7 +1667,7 @@ export function TeachersManagement({ establishmentId, userRole, userId, onBack }
               <br />
               <strong>Identifiant :</strong> {accessData.username}
               <br />
-              <strong>Mot de passe :</strong> {accessData.password === "••••••••" ? "[Masqué]" : accessData.password}
+              <strong>Mot de passe :</strong> {accessData.password === "" ? "[Non modifié]" : accessData.password}
             </p>
           </div>
           <DialogFooter>
