@@ -146,32 +146,27 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
     console.log("[v0] Dropping student on seat:", seatNumber)
 
     const newAssignments = new Map(assignments)
-    const occupiedStudentId = newAssignments.get(seatNumber)
 
-    // Remove student from any previous seat
+    const targetSeatStudent = newAssignments.get(seatNumber)
+
+    let draggedStudentCurrentSeat: number | null = null
     for (const [seat, studentId] of newAssignments.entries()) {
       if (studentId === draggedStudent.id) {
-        newAssignments.delete(seat)
+        draggedStudentCurrentSeat = seat
+        break
       }
     }
 
-    if (occupiedStudentId && occupiedStudentId !== draggedStudent.id) {
-      // Swap with occupied seat
-      let draggedStudentPreviousSeat: number | null = null
-      for (const [seat, studentId] of Array.from(newAssignments.entries())) {
-        if (studentId === draggedStudent.id) {
-          draggedStudentPreviousSeat = seat
-          break
-        }
+    if (targetSeatStudent && targetSeatStudent !== draggedStudent.id) {
+      // Swap: dragged student goes to target seat, target student goes to dragged student's old seat
+      if (draggedStudentCurrentSeat !== null) {
+        newAssignments.set(draggedStudentCurrentSeat, targetSeatStudent)
       }
-
       newAssignments.set(seatNumber, draggedStudent.id)
-
-      if (draggedStudentPreviousSeat !== null) {
-        newAssignments.set(draggedStudentPreviousSeat, occupiedStudentId)
-      }
     } else {
-      // Just assign to empty seat
+      if (draggedStudentCurrentSeat !== null) {
+        newAssignments.delete(draggedStudentCurrentSeat)
+      }
       newAssignments.set(seatNumber, draggedStudent.id)
     }
 
@@ -302,13 +297,10 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
         throw deleteError
       }
 
-      // Insert new assignments
       const assignmentsToInsert = Array.from(assignments.entries()).map(([seatNumber, studentId]) => ({
         sub_room_id: subRoom.id,
         student_id: studentId,
         seat_position: seatNumber,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       }))
 
       console.log("[v0] Assignments to insert:", assignmentsToInsert)
@@ -798,8 +790,11 @@ export function SeatingPlanEditor({ subRoom, onBack }: SeatingPlanEditorProps) {
                                   <div
                                     key={`seat-${tableIndex}-${seatIndex}`}
                                     data-seat-number={seatNumber}
+                                    draggable={!!student}
+                                    onDragStart={() => student && handleDragStart(student)}
                                     onDragOver={handleDragOver}
                                     onDrop={(e) => handleDrop(e, seatNumber)}
+                                    onTouchStart={(e) => student && handleTouchStart(e, student)}
                                     onTouchEnd={(e) => handleTouchEnd(e, seatNumber)}
                                     onClick={() => !student && handleSeatClick(seatNumber)}
                                     className={`
