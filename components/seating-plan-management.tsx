@@ -10,9 +10,9 @@ import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import { ArrowLeft, Plus, Search, Users, BookOpen, Trash2 } from "lucide-react"
 import type { UserRole } from "@/lib/types"
-import { SeatingPlanEditor } from "@/components/seating-plan-editor"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { CreateSubRoomDialog } from "./create-sub-room-dialog"
+import { SafeSeatingPlanEditorWrapper } from "@/components/safe-seating-plan-editor-wrapper"
 
 interface Room {
   id: string
@@ -569,12 +569,12 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
         />
 
         {isEditorOpen && selectedSubRoom && (
-          <SeatingPlanEditor
+          <SafeSeatingPlanEditorWrapper
             subRoom={selectedSubRoom}
-            room={selectedSubRoom.rooms}
             onBack={() => {
               setIsEditorOpen(false)
               setSelectedSubRoom(null)
+              fetchData()
             }}
           />
         )}
