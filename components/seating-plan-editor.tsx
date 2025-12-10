@@ -110,12 +110,17 @@ export function SeatingPlanEditor({ subRoom, room, onBack }: SeatingPlanEditorPr
     const supabase = createClient()
 
     console.log("[v0] Editor: Fetching students and assignments for sub-room:", subRoom.id)
+    console.log("[v0] Editor: Class IDs:", subRoom.class_ids)
 
-    const { data: studentsData } = await supabase
+    const { data: studentsData, error: studentsError } = await supabase
       .from("students")
       .select("id, first_name, last_name, class_name, role, is_delegate, is_eco_delegate, gender")
       .in("class_id", subRoom.class_ids)
       .order("last_name")
+
+    console.log("[v0] Editor: Students data:", studentsData)
+    console.log("[v0] Editor: Students error:", studentsError)
+    console.log("[v0] Editor: Number of students found:", studentsData?.length || 0)
 
     if (studentsData) setStudents(studentsData)
 
@@ -750,6 +755,7 @@ export function SeatingPlanEditor({ subRoom, room, onBack }: SeatingPlanEditorPr
       </div>
 
       <div className="flex flex-1 overflow-hidden">
+        {/* Left column - Students list with filters */}
         <div className="w-80 border-r bg-white p-6 overflow-y-auto">
           <h2 className="mb-4 text-lg font-semibold">
             Élèves non placés ({getFilteredUnassignedStudents().length}/{getUnassignedStudents().length})
@@ -857,7 +863,7 @@ export function SeatingPlanEditor({ subRoom, room, onBack }: SeatingPlanEditorPr
             </p>
           </div>
 
-          <div className="space-y-2 mb-6">
+          <div className="space-y-2">
             {getFilteredUnassignedStudents().length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
                 {searchTerm || genderFilter !== "all" || delegateFilter !== "all"
@@ -903,68 +909,9 @@ export function SeatingPlanEditor({ subRoom, room, onBack }: SeatingPlanEditorPr
               ))
             )}
           </div>
-
-          <div className="mt-6 space-y-2">
-            <h3 className="mb-2 text-sm font-semibold">Actions rapides</h3>
-
-            <div className="space-y-2 pb-3 mb-3 border-b">
-              <p className="text-xs text-muted-foreground">Compléter (élèves restants)</p>
-              <Button variant="outline" size="sm" className="w-full bg-transparent" onClick={handleCompleteRandom}>
-                <Shuffle className="mr-2 h-4 w-4" />
-                Compléter aléatoire
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full bg-transparent"
-                onClick={() => handleCompleteAlphabetical("asc")}
-              >
-                <ArrowDownAZ className="mr-2 h-4 w-4" />
-                Compléter A-Z
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full bg-transparent"
-                onClick={() => handleCompleteAlphabetical("desc")}
-              >
-                <ArrowUpAZ className="mr-2 h-4 w-4" />
-                Compléter Z-A
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Placer tous les élèves</p>
-              <Button variant="outline" size="sm" className="w-full bg-transparent" onClick={handleRandomPlacementAll}>
-                <Shuffle className="mr-2 h-4 w-4" />
-                Placement aléatoire
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full bg-transparent"
-                onClick={() => handleAlphabeticalPlacement("asc")}
-              >
-                <ArrowDownAZ className="mr-2 h-4 w-4" />
-                A-Z
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full bg-transparent"
-                onClick={() => handleAlphabeticalPlacement("desc")}
-              >
-                <ArrowUpAZ className="mr-2 h-4 w-4" />
-                Z-A
-              </Button>
-              <Button variant="destructive" size="sm" className="w-full" onClick={handleRemoveAll}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Tout retirer
-              </Button>
-            </div>
-          </div>
         </div>
 
+        {/* Center column - Seating plan editor */}
         <div className="flex-1 overflow-auto p-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-6 rounded-lg border-2 border-green-600 bg-green-50 p-4 text-center">
@@ -1034,6 +981,71 @@ export function SeatingPlanEditor({ subRoom, room, onBack }: SeatingPlanEditorPr
                   ))}
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right column - Action buttons */}
+        <div className="w-64 border-l bg-white p-6 overflow-y-auto">
+          <h2 className="mb-4 text-lg font-semibold">Actions</h2>
+
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">Compléter (élèves restants)</h3>
+              <Button variant="outline" size="sm" className="w-full bg-transparent" onClick={handleCompleteRandom}>
+                <Shuffle className="mr-2 h-4 w-4" />
+                Compléter aléatoire
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full bg-transparent"
+                onClick={() => handleCompleteAlphabetical("asc")}
+              >
+                <ArrowDownAZ className="mr-2 h-4 w-4" />
+                Compléter A-Z
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full bg-transparent"
+                onClick={() => handleCompleteAlphabetical("desc")}
+              >
+                <ArrowUpAZ className="mr-2 h-4 w-4" />
+                Compléter Z-A
+              </Button>
+            </div>
+
+            <div className="border-t pt-4" />
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">Placer tous les élèves</h3>
+              <Button variant="outline" size="sm" className="w-full bg-transparent" onClick={handleRandomPlacementAll}>
+                <Shuffle className="mr-2 h-4 w-4" />
+                Placement aléatoire
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full bg-transparent"
+                onClick={() => handleAlphabeticalPlacement("asc")}
+              >
+                <ArrowDownAZ className="mr-2 h-4 w-4" />
+                A-Z
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full bg-transparent"
+                onClick={() => handleAlphabeticalPlacement("desc")}
+              >
+                <ArrowUpAZ className="mr-2 h-4 w-4" />
+                Z-A
+              </Button>
+              <Button variant="destructive" size="sm" className="w-full" onClick={handleRemoveAll}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Tout retirer
+              </Button>
             </div>
           </div>
         </div>
