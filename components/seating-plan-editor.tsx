@@ -38,6 +38,7 @@ import {
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import cn from "classnames"
+import { notifyPlanModified } from "@/lib/notifications"
 
 interface Student {
   id: string
@@ -518,6 +519,8 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
       }
 
       setSavedAssignments(new Map(assignments))
+
+      await notifyPlanModified(subRoom.id, subRoom.name, subRoom.class_ids)
 
       toast({
         title: "Plan sauvegardé",

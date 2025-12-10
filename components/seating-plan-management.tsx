@@ -148,25 +148,7 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
     const { data: teachersData } = await supabase.from("teachers").select("*").eq("establishment_id", establishmentId)
     if (teachersData) setTeachers(teachersData)
 
-    let subRoomsQuery = supabase
-      .from("sub_rooms")
-      .select(`
-        *,
-        rooms(name, code),
-        teachers(first_name, last_name)
-      `)
-      .eq("establishment_id", establishmentId)
-
-    if (userRole === "professeur") {
-      subRoomsQuery = subRoomsQuery.or(`teacher_id.eq.${userId},created_by.eq.${userId}`)
-    } else if (userRole === "delegue" || userRole === "eco-delegue") {
-      subRoomsQuery = subRoomsQuery.eq("created_by", userId)
-    }
-
-    const { data: subRoomsData } = await subRoomsQuery.order("created_at", { ascending: false })
-    if (subRoomsData) setSubRooms(subRoomsData)
-
-    await setAvailableOptions(supabase)
+    await fetchSubRooms()
   }
 
   const setAvailableOptions = async (supabase: any) => {
@@ -300,13 +282,31 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
       .eq("establishment_id", establishmentId)
 
     if (userRole === "professeur") {
+      // Professors see: sub-rooms they created OR where they are the main teacher OR in sub_room_teachers
       subRoomsQuery = subRoomsQuery.or(`teacher_id.eq.${userId},created_by.eq.${userId}`)
     } else if (userRole === "delegue" || userRole === "eco-delegue") {
-      subRoomsQuery = subRoomsQuery.eq("created_by", userId)
+      // Delegates need to see sub-rooms containing their class_id in class_ids array
+      // First, get the delegate's class_id
+      const { data: studentRecord } = await supabase
+        .from("students")
+        .select("class_id")
+        .eq("profile_id", userId)
+        .maybeSingle()
+
+      if (studentRecord?.class_id) {
+        // Filter sub-rooms that contain this class_id in their class_ids array
+        subRoomsQuery = subRoomsQuery.contains("class_ids", [studentRecord.class_id])
+      } else {
+        // If no class found, show only sub-rooms they created (fallback)
+        subRoomsQuery = subRoomsQuery.eq("created_by", userId)
+      }
     }
+    // vie-scolaire sees all sub-rooms (no additional filter)
 
     const { data: subRoomsData } = await subRoomsQuery.order("created_at", { ascending: false })
     if (subRoomsData) setSubRooms(subRoomsData)
+
+    await setAvailableOptions(supabase)
   }
 
   const handleToggleClass = (classId: string) => {

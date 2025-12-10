@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { useAuth } from "@/lib/use-auth"
 import {
   ArrowLeft,
   Plus,
@@ -36,8 +37,8 @@ import {
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { TemplateSelectionDialog } from "@/components/template-selection-dialog"
 import { CreateTemplateDialog } from "@/components/create-template-dialog"
+import { CreateSubRoomDialog } from "@/components/create-sub-room-dialog"
 import type { RoomTemplate } from "@/components/room-templates"
-import type { UserRole } from "@/lib/types"
 
 interface Room {
   id: string
@@ -60,18 +61,10 @@ interface Room {
 interface RoomsManagementProps {
   rooms: Room[]
   establishmentId: string
-  userRole: UserRole
-  userId: string
-  onBack?: () => void // Added onBack prop
 }
 
-export function RoomsManagement({
-  rooms: initialRooms,
-  establishmentId,
-  userRole,
-  userId,
-  onBack,
-}: RoomsManagementProps) {
+export function RoomsManagement({ initialRooms, establishmentId }: RoomsManagementProps) {
+  const { user } = useAuth()
   const router = useRouter()
   const [rooms, setRooms] = useState(initialRooms)
   const [filteredRooms, setFilteredRooms] = useState(initialRooms)
@@ -87,6 +80,8 @@ export function RoomsManagement({
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
   const [isCreateTemplateDialogOpen, setIsCreateTemplateDialogOpen] = useState(false)
   const [creationMode, setCreationMode] = useState<"template" | "custom" | null>(null)
+  const [isCreateSubRoomDialogOpen, setIsCreateSubRoomDialogOpen] = useState(false)
+  const [preselectedRoomId, setPreselectedRoomId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -203,7 +198,7 @@ export function RoomsManagement({
           code: formData.code,
           board_position: formData.boardPosition,
           config: { columns: formData.columns },
-          created_by: userId,
+          created_by: user?.id,
         })
         .select()
         .single()
@@ -251,7 +246,7 @@ export function RoomsManagement({
           code: `${room.code}-copy-${Date.now().toString().slice(-4)}`,
           board_position: room.board_position,
           config: room.config,
-          created_by: userId,
+          created_by: user?.id,
         })
 
         if (error) throw error
@@ -438,9 +433,14 @@ export function RoomsManagement({
     }
   }
 
-  const isVieScolaire = userRole === "vie-scolaire"
+  const isVieScolaire = user?.role === "vie-scolaire"
   const canModifyRooms = isVieScolaire
   const canViewRooms = true // Everyone can view rooms
+
+  const handleCreateFromRoom = (roomId: string) => {
+    setPreselectedRoomId(roomId)
+    setIsCreateSubRoomDialogOpen(true)
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -450,7 +450,7 @@ export function RoomsManagement({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => onBack?.()}
+              onClick={() => router.back()}
               className="hover:bg-white/50 dark:hover:bg-slate-800/50"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -647,8 +647,9 @@ export function RoomsManagement({
                   <Button
                     variant="outline"
                     className="border-emerald-300 hover:bg-emerald-50 dark:border-emerald-700 bg-transparent"
+                    onClick={() => handleCreateFromRoom(viewedRoom.id)}
                   >
-                    Transposer en plan de classe
+                    Créer une sous-salle à partir
                   </Button>
                   <Button
                     variant="ghost"
@@ -968,15 +969,26 @@ export function RoomsManagement({
             open={isTemplateDialogOpen}
             onOpenChange={setIsTemplateDialogOpen}
             onSelectTemplate={handleSelectTemplate}
-            userId={userId}
+            userId={user?.id}
             establishmentId={establishmentId}
           />
           <CreateTemplateDialog
             open={isCreateTemplateDialogOpen}
             onOpenChange={setIsCreateTemplateDialogOpen}
             onSuccess={fetchRooms}
-            userId={userId}
+            userId={user?.id}
             establishmentId={establishmentId}
+          />
+          <CreateSubRoomDialog
+            open={isCreateSubRoomDialogOpen}
+            onOpenChange={setIsCreateSubRoomDialogOpen}
+            onSuccess={() => {
+              setIsCreateSubRoomDialogOpen(false)
+              // Optionally refresh or show success message
+            }}
+            establishmentId={establishmentId}
+            preselectedRoomId={preselectedRoomId}
+            userRole={user?.role}
           />
         </div>
       </div>

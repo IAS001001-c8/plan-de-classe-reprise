@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { LogOut, Users, BookOpen, SettingsIcon, Key, LayoutGrid } from "lucide-react"
+import { LogOut, Users, BookOpen, SettingsIcon, Key, LayoutGrid, Lightbulb } from "lucide-react"
 import { motion } from "framer-motion"
 import type { User } from "@supabase/supabase-js"
 import type { Profile } from "@/lib/types"
@@ -27,6 +27,7 @@ import { TeachersManagement } from "@/components/teachers-management"
 import { ClassesManagement } from "@/components/classes-management"
 import { RoomsManagement } from "@/components/rooms-management"
 import { SeatingPlanManagement } from "@/components/seating-plan-management"
+import { NotificationsDropdown } from "@/components/notifications-dropdown"
 
 interface DashboardContentProps {
   user: User
@@ -319,6 +320,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <p className="text-sm text-slate-500 dark:text-slate-400 ml-15">{profile.establishments?.name}</p>
               </div>
               <div className="flex gap-2">
+                <NotificationsDropdown userId={profile.id} />
                 <Button
                   variant="outline"
                   onClick={openSettings}
@@ -438,6 +440,24 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                   </p>
                 </CardContent>
               </Card>
+
+              <Card
+                className="cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 border-2 hover:border-orange-300 dark:hover:border-orange-600"
+                onClick={() => router.push("/dashboard/sandbox")}
+              >
+                <CardHeader className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-t-lg">
+                  <CardTitle className="flex items-center text-xl">
+                    <Lightbulb className="mr-3 h-6 w-6" />
+                    Bac à sable
+                  </CardTitle>
+                  <CardDescription className="text-orange-100">Propositions de plans de classe</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Consultez les propositions de plans créées par les délégués.
+                  </p>
+                </CardContent>
+              </Card>
             </>
           )}
 
@@ -514,6 +534,24 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                   </p>
                 </CardContent>
               </Card>
+
+              <Card
+                className="cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 border-2 hover:border-orange-300 dark:hover:border-orange-600"
+                onClick={() => router.push("/dashboard/sandbox")}
+              >
+                <CardHeader className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-t-lg">
+                  <CardTitle className="flex items-center text-xl">
+                    <Lightbulb className="mr-3 h-6 w-6" />
+                    Bac à sable
+                  </CardTitle>
+                  <CardDescription className="text-orange-100">Valider les propositions</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Examinez et validez les plans proposés par vos délégués.
+                  </p>
+                </CardContent>
+              </Card>
             </>
           )}
 
@@ -585,6 +623,24 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardContent className="pt-6">
                   <p className="text-sm text-slate-600 dark:text-slate-400">
                     Créez des sous-salles et organisez les plans de classe.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card
+                className="cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 border-2 hover:border-orange-300 dark:hover:border-orange-600"
+                onClick={() => router.push("/dashboard/sandbox")}
+              >
+                <CardHeader className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-t-lg">
+                  <CardTitle className="flex items-center text-xl">
+                    <Lightbulb className="mr-3 h-6 w-6" />
+                    Bac à sable
+                  </CardTitle>
+                  <CardDescription className="text-orange-100">Créer des propositions</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Créez et proposez des plans de classe à vos professeurs.
                   </p>
                 </CardContent>
               </Card>
