@@ -42,8 +42,8 @@ interface CreateSubRoomDialogProps {
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
   establishmentId: string
-  preselectedRoomId?: string | null // Add preselected room ID
-  userRole?: string // Add user role for permission checks
+  preselectedRoomId?: string | null
+  userRole?: string
 }
 
 export function CreateSubRoomDialog({
@@ -58,7 +58,7 @@ export function CreateSubRoomDialog({
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [canCreateSubRooms, setCanCreateSubRooms] = useState(true) // Add permission check state
+  const [currentTeacherId, setCurrentTeacherId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     roomId: "",
@@ -72,9 +72,8 @@ export function CreateSubRoomDialog({
   const supabase = createClient()
 
   useEffect(() => {
-    async function checkPermissions() {
-      if (userRole === "delegue" || userRole === "eco-delegue") {
-        // Check can_create_subrooms from profile
+    async function loadCurrentTeacher() {
+      if (userRole === "professeur") {
         try {
           const cookieSession = document.cookie
             .split("; ")
@@ -83,24 +82,25 @@ export function CreateSubRoomDialog({
 
           if (cookieSession) {
             const sessionData = JSON.parse(decodeURIComponent(cookieSession))
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("can_create_subrooms")
-              .eq("id", sessionData.id)
+            const { data: teacher } = await supabase
+              .from("teachers")
+              .select("id")
+              .eq("profile_id", sessionData.id)
               .single()
 
-            if (profile) {
-              setCanCreateSubRooms(profile.can_create_subrooms ?? true)
+            if (teacher) {
+              setCurrentTeacherId(teacher.id)
+              setFormData((prev) => ({ ...prev, selectedTeachers: [teacher.id] }))
             }
           }
         } catch (error) {
-          console.error("[v0] Error checking permissions:", error)
+          console.error("[v0] Error loading current teacher:", error)
         }
       }
     }
 
     if (open) {
-      checkPermissions()
+      loadCurrentTeacher()
     }
   }, [open, userRole])
 
@@ -117,7 +117,7 @@ export function CreateSubRoomDialog({
     try {
       const [roomsRes, teachersRes, classesRes] = await Promise.all([
         supabase.from("rooms").select("*").eq("establishment_id", establishmentId),
-        supabase.from("teachers").select("*").eq("establishment_id", establishmentId),
+        supabase.from("teachers").select("*").eq("establishment_id", establishmentId).order("last_name"),
         supabase.from("classes").select("*").eq("establishment_id", establishmentId),
       ])
 
@@ -138,19 +138,17 @@ export function CreateSubRoomDialog({
       let newTeachers: string[]
 
       if (prev.isCollaborative) {
-        // Mode multi-profs : permettre plusieurs sélections
         newTeachers = prev.selectedTeachers.includes(teacherId)
           ? prev.selectedTeachers.filter((id) => id !== teacherId)
           : [...prev.selectedTeachers, teacherId]
       } else {
-        // Mode simple : un seul prof
         newTeachers = prev.selectedTeachers.includes(teacherId) ? [] : [teacherId]
       }
 
       return {
         ...prev,
         selectedTeachers: newTeachers,
-        selectedClasses: [], // Réinitialiser les classes
+        selectedClasses: [],
       }
     })
   }
@@ -160,12 +158,10 @@ export function CreateSubRoomDialog({
       let newClasses: string[]
 
       if (prev.isMultiClass) {
-        // Mode multi-classes : permettre plusieurs sélections
         newClasses = prev.selectedClasses.includes(classId)
           ? prev.selectedClasses.filter((id) => id !== classId)
           : [...prev.selectedClasses, classId]
       } else {
-        // Mode simple : une seule classe
         newClasses = prev.selectedClasses.includes(classId) ? [] : [classId]
       }
 
@@ -182,7 +178,6 @@ export function CreateSubRoomDialog({
     }
 
     try {
-      // Récupérer les relations teacher_classes pour les profs sélectionnés
       const { data: teacherClassesData, error } = await supabase
         .from("teacher_classes")
         .select("class_id")
@@ -194,8 +189,6 @@ export function CreateSubRoomDialog({
       }
 
       const classIds = teacherClassesData?.map((tc) => tc.class_id) || []
-
-      // Filtrer les classes qui sont assignées aux profs sélectionnés
       return classes.filter((cls) => classIds.includes(cls.id))
     } catch (error) {
       console.error("[v0] Error filtering classes:", error)
@@ -233,7 +226,7 @@ export function CreateSubRoomDialog({
           custom_name: formData.customName || null,
           teacher_id: formData.selectedTeachers[0],
           establishment_id: establishmentId,
-          class_ids: formData.selectedClasses, // Store classes directly as array
+          class_ids: formData.selectedClasses,
         })
         .select()
         .single()
@@ -271,7 +264,6 @@ export function CreateSubRoomDialog({
       onOpenChange(false)
       onSuccess()
 
-      // Force page reload after short delay
       setTimeout(() => {
         window.location.reload()
       }, 500)
@@ -284,60 +276,48 @@ export function CreateSubRoomDialog({
   }
 
   const isDelegate = userRole === "delegue" || userRole === "eco-delegue"
+  const isProfessor = userRole === "professeur"
+
+  const displayedTeachers =
+    formData.isCollaborative && isProfessor && currentTeacherId
+      ? teachers.filter((t) => t.id !== currentTeacherId)
+      : teachers
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Créer une sous-salle</DialogTitle>
-          <DialogDescription>
-            {!canCreateSubRooms && isDelegate ? (
-              <span className="text-orange-600 dark:text-orange-400">
-                Vous n'avez pas la permission de créer des sous-salles. Contactez votre professeur.
-              </span>
-            ) : (
-              "Configurez une nouvelle sous-salle pour un plan de classe"
-            )}
-          </DialogDescription>
+          <DialogDescription>Configurez une nouvelle sous-salle pour un plan de classe</DialogDescription>
         </DialogHeader>
 
-        {!canCreateSubRooms && isDelegate ? (
-          <div className="border border-orange-300 bg-orange-50 dark:bg-orange-950 rounded-md p-4">
-            <p className="text-sm text-orange-800 dark:text-orange-200 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              La création de sous-salles est désactivée pour votre compte. Veuillez utiliser le Bac à sable pour
-              proposer des plans de classe.
-            </p>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Label>Salle</Label>
+            <Select value={formData.roomId} onValueChange={(value) => setFormData({ ...formData, roomId: value })}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sélectionner une salle" />
+              </SelectTrigger>
+              <SelectContent>
+                {rooms.map((room) => (
+                  <SelectItem key={room.id} value={room.id}>
+                    {room.name} ({room.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Sélection de la salle */}
-            <div className="space-y-2">
-              <Label>Salle</Label>
-              <Select value={formData.roomId} onValueChange={(value) => setFormData({ ...formData, roomId: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une salle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rooms.map((room) => (
-                    <SelectItem key={room.id} value={room.id}>
-                      {room.name} ({room.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
-            {/* Nom personnalisé */}
-            <div className="space-y-2">
-              <Label>Nom personnalisé</Label>
-              <Input
-                value={formData.customName}
-                onChange={(e) => setFormData({ ...formData, customName: e.target.value })}
-                placeholder="ex: Salle B23 Mr Gomant"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Nom personnalisé</Label>
+            <Input
+              value={formData.customName}
+              onChange={(e) => setFormData({ ...formData, customName: e.target.value })}
+              placeholder="ex: Salle B23 Mr Gomant"
+            />
+          </div>
 
+          {isProfessor && (
             <div className="flex items-center gap-2 border rounded-md p-3">
               <Checkbox
                 id="collaborative"
@@ -346,7 +326,7 @@ export function CreateSubRoomDialog({
                   setFormData({
                     ...formData,
                     isCollaborative: checked as boolean,
-                    selectedTeachers: [], // Réinitialiser
+                    selectedTeachers: currentTeacherId ? [currentTeacherId] : [],
                   })
                 }}
               />
@@ -354,18 +334,21 @@ export function CreateSubRoomDialog({
                 Salle collaborative (multi-professeurs)
               </Label>
             </div>
+          )}
 
-            {/* Sélection des professeurs */}
+          {(!isProfessor || formData.isCollaborative) && (
             <div className="space-y-2">
               <Label>
-                Professeur{formData.isCollaborative ? "s" : ""}
+                {isProfessor ? "Autres professeurs" : "Professeur"}
                 {!formData.isCollaborative && <span className="text-xs text-muted-foreground ml-1">(1 seul)</span>}
               </Label>
-              {teachers.length === 0 ? (
-                <div className="text-sm text-muted-foreground border rounded-md p-4">Aucun professeur disponible</div>
+              {displayedTeachers.length === 0 ? (
+                <div className="text-sm text-muted-foreground border rounded-md p-4">
+                  {isProfessor ? "Aucun autre professeur disponible" : "Aucun professeur disponible"}
+                </div>
               ) : (
                 <div className="border rounded-md p-4 space-y-2 max-h-48 overflow-y-auto">
-                  {teachers.map((teacher) => (
+                  {displayedTeachers.map((teacher) => (
                     <div key={teacher.id} className="flex items-center gap-2">
                       <Checkbox
                         id={`teacher-${teacher.id}`}
@@ -380,66 +363,65 @@ export function CreateSubRoomDialog({
                 </div>
               )}
             </div>
+          )}
 
-            {formData.selectedTeachers.length > 0 && (
-              <div className="flex items-center gap-2 border rounded-md p-3">
-                <Checkbox
-                  id="multiclass"
-                  checked={formData.isMultiClass}
-                  onCheckedChange={(checked) => {
-                    setFormData({
-                      ...formData,
-                      isMultiClass: checked as boolean,
-                      selectedClasses: [], // Réinitialiser
-                    })
-                  }}
-                  disabled={isDelegate} // Disable multi-class for delegates
-                />
-                <Label htmlFor="multiclass" className="cursor-pointer text-sm">
-                  Multi-classes
-                  {isDelegate && (
-                    <span className="text-xs text-muted-foreground ml-2">(Non disponible pour les délégués)</span>
-                  )}
-                </Label>
+          {formData.selectedTeachers.length > 0 && (
+            <div className="flex items-center gap-2 border rounded-md p-3">
+              <Checkbox
+                id="multiclass"
+                checked={formData.isMultiClass}
+                onCheckedChange={(checked) => {
+                  setFormData({
+                    ...formData,
+                    isMultiClass: checked as boolean,
+                    selectedClasses: [],
+                  })
+                }}
+                disabled={isDelegate}
+              />
+              <Label htmlFor="multiclass" className="cursor-pointer text-sm">
+                Multi-classes
+                {isDelegate && (
+                  <span className="text-xs text-muted-foreground ml-2">(Non disponible pour les délégués)</span>
+                )}
+              </Label>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>
+              Classe{formData.isMultiClass ? "s" : ""}
+              {!formData.isMultiClass && <span className="text-xs text-muted-foreground ml-1">(1 seule)</span>}
+            </Label>
+            {formData.selectedTeachers.length === 0 ? (
+              <div className="border border-orange-300 bg-orange-50 dark:bg-orange-950 rounded-md p-4">
+                <p className="text-sm text-orange-800 dark:text-orange-200 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Veuillez d'abord sélectionner un ou plusieurs professeurs
+                </p>
+              </div>
+            ) : filteredClasses.length === 0 ? (
+              <div className="text-sm text-muted-foreground border rounded-md p-4">
+                Aucune classe disponible pour ce(s) professeur(s)
+              </div>
+            ) : (
+              <div className="border rounded-md p-4 space-y-2 max-h-48 overflow-y-auto">
+                {filteredClasses.map((cls) => (
+                  <div key={cls.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`class-${cls.id}`}
+                      checked={formData.selectedClasses.includes(cls.id)}
+                      onCheckedChange={() => handleToggleClass(cls.id)}
+                    />
+                    <Label htmlFor={`class-${cls.id}`} className="text-sm font-normal cursor-pointer flex-1">
+                      {cls.name}
+                    </Label>
+                  </div>
+                ))}
               </div>
             )}
-
-            {/* Sélection des classes */}
-            <div className="space-y-2">
-              <Label>
-                Classe{formData.isMultiClass ? "s" : ""}
-                {!formData.isMultiClass && <span className="text-xs text-muted-foreground ml-1">(1 seule)</span>}
-              </Label>
-              {formData.selectedTeachers.length === 0 ? (
-                <div className="border border-orange-300 bg-orange-50 dark:bg-orange-950 rounded-md p-4">
-                  <p className="text-sm text-orange-800 dark:text-orange-200 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    Veuillez d'abord sélectionner un ou plusieurs professeurs
-                  </p>
-                </div>
-              ) : filteredClasses.length === 0 ? (
-                <div className="text-sm text-muted-foreground border rounded-md p-4">
-                  Aucune classe disponible pour ce(s) professeur(s)
-                </div>
-              ) : (
-                <div className="border rounded-md p-4 space-y-2 max-h-48 overflow-y-auto">
-                  {filteredClasses.map((cls) => (
-                    <div key={cls.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`class-${cls.id}`}
-                        checked={formData.selectedClasses.includes(cls.id)}
-                        onCheckedChange={() => handleToggleClass(cls.id)}
-                      />
-                      <Label htmlFor={`class-${cls.id}`} className="text-sm font-normal cursor-pointer flex-1">
-                        {cls.name}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
-        )}
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -449,7 +431,6 @@ export function CreateSubRoomDialog({
             onClick={handleCreate}
             disabled={
               isLoading ||
-              !canCreateSubRooms ||
               !formData.roomId ||
               formData.selectedTeachers.length === 0 ||
               formData.selectedClasses.length === 0

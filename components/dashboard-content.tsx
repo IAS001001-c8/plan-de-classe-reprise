@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { LogOut, Users, BookOpen, SettingsIcon, Key, LayoutGrid, Lightbulb, Moon, Sun } from "lucide-react"
+import { LogOut, Users, BookOpen, SettingsIcon, Key, LayoutGrid, Lightbulb } from "lucide-react"
 import { motion } from "framer-motion"
 import type { User } from "@supabase/supabase-js"
 import type { Profile } from "@/lib/types"
@@ -28,7 +28,6 @@ import { ClassesManagement } from "@/components/classes-management"
 import { RoomsManagement } from "@/components/rooms-management"
 import { SeatingPlanManagement } from "@/components/seating-plan-management"
 import { NotificationsDropdown } from "@/components/notifications-dropdown"
-import { useTheme } from "next-themes"
 
 interface DashboardContentProps {
   user: User
@@ -46,7 +45,6 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
     username: "",
     password: "",
   })
-  const { theme, setTheme } = useTheme()
   const [canAccessSandbox, setCanAccessSandbox] = useState(true)
 
   useEffect(() => {
@@ -351,14 +349,6 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 {isLoggingOut ? "Déconnexion..." : "Déconnexion"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className="hover:bg-slate-50 hover:border-slate-300 transition-all bg-transparent"
-              >
-                {theme === "dark" ? <Moon className="mr-2 h-4 w-4" /> : <Sun className="mr-2 h-4 w-4" />}
-                {theme === "dark" ? "Mode jour" : "Mode nuit"}
               </Button>
             </div>
           </div>
