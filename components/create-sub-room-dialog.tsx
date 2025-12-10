@@ -202,7 +202,7 @@ export function CreateSubRoomDialog({ open, onOpenChange, onSuccess, establishme
           custom_name: formData.customName || null,
           teacher_id: formData.selectedTeachers[0],
           establishment_id: establishmentId,
-          class_ids: formData.selectedClasses, // Store array for backward compatibility
+          class_ids: formData.selectedClasses,
           is_multi_class: formData.isMultiClass,
         })
         .select()
@@ -240,29 +240,6 @@ export function CreateSubRoomDialog({ open, onOpenChange, onSuccess, establishme
           console.log("[v0] Teachers linked successfully")
         }
       }
-
-      const classLinks = formData.selectedClasses.map((classId) => ({
-        sub_room_id: subRoom.id,
-        class_id: classId,
-      }))
-
-      const { error: classesError } = await supabase.from("sub_room_classes").insert(classLinks)
-
-      if (classesError) {
-        console.error("[v0] Error linking classes:", classesError)
-        toast({
-          title: "Échec de la création",
-          description: `Les classes n'ont pas pu être associées: ${classesError.message}`,
-          variant: "destructive",
-        })
-
-        await supabase.from("sub_rooms").delete().eq("id", subRoom.id)
-
-        setIsLoading(false)
-        return
-      }
-
-      console.log("[v0] Classes linked successfully")
 
       toast({
         title: "Sous-salle créée avec succès",
