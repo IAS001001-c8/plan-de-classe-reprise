@@ -47,56 +47,126 @@ export function ReviewProposalDialog({
     setAction("approve")
 
     try {
-      const { data: subRoomData, error: subRoomError } = await supabase
-        .from("sub_rooms")
-        .insert({
-          room_id: proposal.room_id, // Use the room_id from the proposal
-          teacher_id: proposal.teacher_id,
-          name: proposal.name,
-          class_ids: [proposal.class_id],
-          created_by: userId,
-        })
-        .select()
-        .single()
+      console.log("[v0] Approving proposal:", proposal)
 
-      if (subRoomError) throw subRoomError
+      if (proposal.sub_room_id) {
+        // Update existing sub-room
+        console.log("[v0] Updating existing sub-room:", proposal.sub_room_id)
 
-      // Copy seating assignments if they exist
-      if (proposal.seat_assignments && proposal.seat_assignments.length > 0) {
-        const assignments = proposal.seat_assignments.map((assignment: any) => ({
-          sub_room_id: subRoomData.id,
-          seat_id: assignment.seat_id,
-          student_id: assignment.student_id,
-        }))
+        // Delete old assignments
+        const { error: deleteError } = await supabase
+          .from("seating_assignments")
+          .delete()
+          .eq("sub_room_id", proposal.sub_room_id)
 
-        const { error: assignmentsError } = await supabase.from("seating_assignments").insert(assignments)
-
-        if (assignmentsError) {
-          console.error("[v0] Error saving assignments:", assignmentsError)
+        if (deleteError) {
+          console.error("[v0] Error deleting old assignments:", deleteError)
+          throw deleteError
         }
+
+        // Insert new assignments if they exist
+        if (proposal.seat_assignments && proposal.seat_assignments.length > 0) {
+          const assignments = proposal.seat_assignments.map((assignment: any) => ({
+            sub_room_id: proposal.sub_room_id,
+            seat_id: assignment.seat_id,
+            student_id: assignment.student_id,
+            seat_number: assignment.seat_number,
+          }))
+
+          const { error: assignmentsError } = await supabase.from("seating_assignments").insert(assignments)
+
+          if (assignmentsError) {
+            console.error("[v0] Error saving assignments:", assignmentsError)
+            throw assignmentsError
+          }
+
+          console.log("[v0] Updated", assignments.length, "seat assignments")
+        }
+      } else {
+        // Create new sub-room
+        console.log("[v0] Creating new sub-room for proposal:", proposal.name)
+
+        const { data: subRoomData, error: subRoomError } = await supabase
+          .from("sub_rooms")
+          .insert({
+            room_id: proposal.room_id,
+            teacher_id: proposal.teacher_id,
+            name: proposal.name,
+            class_ids: [proposal.class_id],
+            created_by: userId,
+          })
+          .select()
+          .single()
+
+        if (subRoomError) {
+          console.error("[v0] Error creating sub-room:", subRoomError)
+          throw subRoomError
+        }
+
+        console.log("[v0] Created sub-room:", subRoomData.id)
+
+        // Copy seating assignments if they exist
+        if (proposal.seat_assignments && proposal.seat_assignments.length > 0) {
+          const assignments = proposal.seat_assignments.map((assignment: any) => ({
+            sub_room_id: subRoomData.id,
+            seat_id: assignment.seat_id,
+            student_id: assignment.student_id,
+            seat_number: assignment.seat_number,
+          }))
+
+          const { error: assignmentsError } = await supabase.from("seating_assignments").insert(assignments)
+
+          if (assignmentsError) {
+            console.error("[v0] Error saving assignments:", assignmentsError)
+          } else {
+            console.log("[v0] Saved", assignments.length, "seat assignments")
+          }
+        }
+
+        // Update proposal with sub_room_id
+        const { error: updateProposalError } = await supabase
+          .from("sub_room_proposals")
+          .update({
+            sub_room_id: subRoomData.id,
+            status: "approved",
+            reviewed_by: userId,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq("id", proposal.id)
+
+        if (updateProposalError) {
+          console.error("[v0] Error updating proposal:", updateProposalError)
+          throw updateProposalError
+        }
+
+        console.log("[v0] Updated proposal status to approved")
       }
 
-      // Update proposal status
-      const { error: updateError } = await supabase
-        .from("sub_room_proposals")
-        .update({
-          status: "approved",
-          reviewed_by: userId,
-          reviewed_at: new Date().toISOString(),
-          sub_room_id: subRoomData.id,
-        })
-        .eq("id", proposal.id)
+      // Update proposal status if not already done
+      if (proposal.sub_room_id) {
+        const { error: updateError } = await supabase
+          .from("sub_room_proposals")
+          .update({
+            status: "approved",
+            reviewed_by: userId,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq("id", proposal.id)
 
-      if (updateError) throw updateError
+        if (updateError) throw updateError
+      }
 
       await notifyProposalStatusChange(proposal.id, proposal.proposed_by, "approved", proposal.name)
 
       toast({
         title: "Succès",
-        description: "Proposition validée et sous-salle créée",
+        description: proposal.sub_room_id
+          ? "Sous-salle mise à jour avec succès"
+          : "Proposition validée et sous-salle créée",
       })
 
       onSuccess()
+      onOpenChange(false)
     } catch (error: any) {
       console.error("[v0] Error approving proposal:", error)
       toast({
@@ -144,6 +214,7 @@ export function ReviewProposalDialog({
       })
 
       onSuccess()
+      onOpenChange(false)
     } catch (error: any) {
       console.error("[v0] Error rejecting proposal:", error)
       toast({

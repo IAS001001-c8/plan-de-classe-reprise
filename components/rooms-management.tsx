@@ -493,7 +493,7 @@ export function RoomsManagement({ initialRooms, establishmentId }: RoomsManageme
         <div className="mb-6">
           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-emerald-300 scrollbar-track-emerald-100 dark:scrollbar-thumb-emerald-700 dark:scrollbar-track-slate-800">
             {filteredRooms.map((room) => {
-              const columns = Array.isArray(room.config?.columns) ? room.config.columns : []
+              const columns = Array.isArray(room.config?.columns) && room.config.columns ? room.config.columns : []
               const totalSeats = columns.reduce(
                 (total, col) => total + (col?.tables || 0) * (col?.seatsPerTable || 0),
                 0,

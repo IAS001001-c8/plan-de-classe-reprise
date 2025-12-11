@@ -4,12 +4,14 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Plus, Clock, CheckCircle2, XCircle, Eye, Edit, FileText } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ArrowLeft, Plus, Clock, CheckCircle2, XCircle, Eye, Edit, FileText, Trash2 } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
 import { toast } from "@/components/ui/use-toast"
 import { CreateProposalDialog } from "@/components/create-proposal-dialog"
 import { ReviewProposalDialog } from "@/components/review-proposal-dialog"
-import { ProposalEditor } from "@/components/proposal-editor"
+import { SeatingPlanEditor } from "@/components/seating-plan-editor"
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 
 interface SandboxManagementProps {
   establishmentId: string
@@ -46,6 +48,9 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [selectedProposalIds, setSelectedProposalIds] = useState<string[]>([])
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [proposalsToDelete, setProposalsToDelete] = useState<string[]>([])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -158,10 +163,54 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
   const handleReviewProposal = (proposal: Proposal) => {
     setSelectedProposal(proposal)
     if (isTeacher && proposal.status === "pending") {
-      setIsEditorOpen(true) // Teachers edit in the editor too
+      setIsEditorOpen(true)
     } else {
       setIsReviewDialogOpen(true)
     }
+  }
+
+  const handleDeleteProposals = async () => {
+    try {
+      const { error } = await supabase.from("sub_room_proposals").delete().in("id", proposalsToDelete)
+
+      if (error) throw error
+
+      toast({
+        title: "Suppression réussie",
+        description: `${proposalsToDelete.length} brouillon(s) supprimé(s)`,
+      })
+
+      setSelectedProposalIds([])
+      setProposalsToDelete([])
+      fetchProposals()
+    } catch (error) {
+      console.error("[v0] Error deleting proposals:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer les brouillons",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleToggleSelection = (proposalId: string) => {
+    setSelectedProposalIds((prev) =>
+      prev.includes(proposalId) ? prev.filter((id) => id !== proposalId) : [...prev, proposalId],
+    )
+  }
+
+  const handleSelectAll = () => {
+    const draftProposals = proposals.filter((p) => !p.is_submitted)
+    if (selectedProposalIds.length === draftProposals.length) {
+      setSelectedProposalIds([])
+    } else {
+      setSelectedProposalIds(draftProposals.map((p) => p.id))
+    }
+  }
+
+  const openDeleteDialog = (proposalIds: string[]) => {
+    setProposalsToDelete(proposalIds)
+    setIsDeleteDialogOpen(true)
   }
 
   const isDelegateOrEco = userRole === "delegue" || userRole === "eco-delegue"
@@ -193,6 +242,34 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
         )}
       </div>
 
+      {/* Selection controls for drafts */}
+      {isDelegateOrEco && proposals.some((p) => !p.is_submitted) && (
+        <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={
+                selectedProposalIds.length === proposals.filter((p) => !p.is_submitted).length &&
+                proposals.filter((p) => !p.is_submitted).length > 0
+              }
+              onCheckedChange={handleSelectAll}
+            />
+            <span className="text-sm font-medium">Sélectionner tous les brouillons</span>
+          </div>
+
+          {selectedProposalIds.length > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => openDeleteDialog(selectedProposalIds)}
+              className="ml-auto"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Supprimer ({selectedProposalIds.length})
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Proposals List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -214,8 +291,18 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {proposals.map((proposal) => (
-            <Card key={proposal.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
+            <Card key={proposal.id} className="hover:shadow-lg transition-shadow relative">
+              {/* Checkbox for draft proposals */}
+              {isDelegateOrEco && !proposal.is_submitted && (
+                <div className="absolute top-4 left-4 z-10">
+                  <Checkbox
+                    checked={selectedProposalIds.includes(proposal.id)}
+                    onCheckedChange={() => handleToggleSelection(proposal.id)}
+                  />
+                </div>
+              )}
+
+              <CardHeader className={isDelegateOrEco && !proposal.is_submitted ? "pl-12" : ""}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-lg">{proposal.name}</CardTitle>
@@ -267,10 +354,25 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
 
                 <div className="flex gap-2 pt-2">
                   {isDelegateOrEco && !proposal.is_submitted && (
-                    <Button size="sm" variant="outline" onClick={() => handleEditProposal(proposal)} className="flex-1">
-                      <Edit className="w-3 h-3 mr-1" />
-                      Éditer
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditProposal(proposal)}
+                        className="flex-1"
+                      >
+                        <Edit className="w-3 h-3 mr-1" />
+                        Éditer
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => openDeleteDialog([proposal.id])}
+                        className="px-2"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </>
                   )}
 
                   {isDelegateOrEco && proposal.status === "rejected" && (
@@ -322,14 +424,18 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
         }}
       />
 
-      <ProposalEditor
-        open={isEditorOpen}
-        onOpenChange={setIsEditorOpen}
-        proposal={selectedProposal}
-        userRole={userRole}
-        userId={userId}
-        onSuccess={fetchProposals}
-      />
+      {selectedProposal && isEditorOpen && (
+        <SandboxEditor
+          proposal={selectedProposal}
+          userRole={userRole}
+          userId={userId}
+          onClose={() => {
+            setIsEditorOpen(false)
+            setSelectedProposal(null)
+            fetchProposals()
+          }}
+        />
+      )}
 
       <ReviewProposalDialog
         open={isReviewDialogOpen}
@@ -342,6 +448,104 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
           fetchProposals()
         }}
       />
+
+      <DeleteConfirmationDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={handleDeleteProposals}
+        itemCount={proposalsToDelete.length}
+        itemType="brouillon"
+      />
     </div>
+  )
+}
+
+interface SandboxEditorProps {
+  proposal: Proposal
+  userRole: string
+  userId: string
+  onClose: () => void
+}
+
+function SandboxEditor({ proposal, userRole, userId, onClose }: SandboxEditorProps) {
+  const [room, setRoom] = useState<any>(null)
+  const [subRoom, setSubRoom] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+
+  useEffect(() => {
+    loadProposalData()
+  }, [proposal])
+
+  async function loadProposalData() {
+    try {
+      // Load room
+      const { data: roomData, error: roomError } = await supabase
+        .from("rooms")
+        .select("*")
+        .eq("id", proposal.room_id)
+        .single()
+
+      if (roomError) throw roomError
+      setRoom(roomData)
+
+      // Create a temporary sub_room object for the editor
+      const tempSubRoom = {
+        id: proposal.id,
+        name: proposal.name,
+        room_id: proposal.room_id,
+        class_ids: [proposal.class_id],
+        is_sandbox: true, // Flag to indicate this is a sandbox proposal
+        proposal_data: proposal,
+      }
+
+      setSubRoom(tempSubRoom)
+    } catch (error) {
+      console.error("[v0] Error loading proposal data:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les données",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement de l'éditeur...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!room || !subRoom) {
+    return (
+      <div className="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Erreur de chargement</p>
+          <Button onClick={onClose}>Fermer</Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <SeatingPlanEditor
+      subRoom={subRoom}
+      room={room}
+      onClose={onClose}
+      isSandbox={true}
+      userRole={userRole}
+      userId={userId}
+    />
   )
 }

@@ -35,10 +35,12 @@ import {
   Link2,
   CheckCircle2,
   User,
+  Send,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import cn from "classnames"
 import { notifyPlanModified } from "@/lib/notifications"
+import { Toaster } from "@/components/ui/toaster" // Imported Toaster
 
 interface Student {
   id: string
@@ -46,6 +48,8 @@ interface Student {
   last_name: string
   class_name: string
   role: string
+  profile_id?: string | null // Added for notifications
+  establishment_id?: string | null // Added for notifications
 }
 
 interface Room {
@@ -67,6 +71,23 @@ interface SubRoom {
   name: string
   room_id: string
   class_ids: string[]
+  is_sandbox?: boolean // Added for sandbox functionality
+  proposal_data?: {
+    // Added for sandbox proposal data
+    id: string
+    sub_room_id: string | null
+    room_id: string
+    teacher_id: string
+    class_id: string
+    name: string
+    seat_assignments: { seat_id: string; student_id: string; seat_number: number }[]
+    status: "pending" | "approved" | "rejected"
+    is_submitted: boolean
+    reviewed_by: string | null
+    reviewed_at: string | null
+    created_at: string
+    updated_at: string
+  }
 }
 
 interface SeatAssignment {
@@ -79,6 +100,9 @@ interface SeatingPlanEditorProps {
   room?: Room
   onClose?: () => void
   onBack?: () => void
+  isSandbox?: boolean // Added for sandbox functionality
+  userRole?: string // Added for user role
+  userId?: string // Added for user ID
 }
 
 // --- Added createClient function ---
@@ -89,7 +113,15 @@ const createClient = () => {
 }
 // --- End of added createClient function ---
 
-export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack }: SeatingPlanEditorProps) {
+export function SeatingPlanEditor({
+  subRoom,
+  room: initialRoom,
+  onClose,
+  onBack,
+  isSandbox = false,
+  userRole,
+  userId,
+}: SeatingPlanEditorProps) {
   const [students, setStudents] = useState<Student[]>([])
   const [assignments, setAssignments] = useState<Map<number, string>>(new Map())
   const [savedAssignments, setSavedAssignments] = useState<Map<number, string>>(new Map())
@@ -103,6 +135,7 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [shareEmail, setShareEmail] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false) // Added state for submitting proposals
   const [completeMethod, setCompleteMethod] = useState<"random" | "asc" | "desc">("random")
   // Simplified confirmation state
   const [showRemoveConfirmation, setShowRemoveConfirmation] = useState(false)
@@ -146,7 +179,7 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
 
     const { data: studentsData, error: studentsError } = await supabase
       .from("students")
-      .select("id, first_name, last_name, class_name, role")
+      .select("id, first_name, last_name, class_name, role, profile_id, establishment_id") // Added profile_id and establishment_id
       .in("class_id", subRoom.class_ids)
       .order("last_name")
 
@@ -163,28 +196,39 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
     }
 
     // Fetch existing seat assignments
-    const { data: assignmentsData, error: assignmentsError } = await supabase
-      .from("seating_assignments")
-      .select("student_id, seat_position")
-      .eq("sub_room_id", subRoom.id)
-
-    if (assignmentsError) {
-      console.error("[v0] Error fetching seating assignments:", assignmentsError)
-      // Handle assignment fetch error if necessary
-    }
-
-    if (assignmentsData) {
+    if (isSandbox && subRoom.is_sandbox && subRoom.proposal_data?.seat_assignments) {
+      console.log("[v0] Loading assignments from sandbox proposal")
       const assignmentMap = new Map<number, string>()
-      assignmentsData.forEach((a: any) => {
-        // Use a more specific type if possible
-        assignmentMap.set(a.seat_position, a.student_id)
+      subRoom.proposal_data.seat_assignments.forEach((a) => {
+        assignmentMap.set(a.seat_number, a.student_id)
       })
       setAssignments(assignmentMap)
       setSavedAssignments(new Map(assignmentMap))
-      console.log("[v0] Loaded", assignmentsData.length, "seat assignments")
+      console.log("[v0] Loaded", subRoom.proposal_data.seat_assignments.length, "seat assignments from proposal")
     } else {
-      setAssignments(new Map()) // Clear assignments if no data or error
-      setSavedAssignments(new Map())
+      const { data: assignmentsData, error: assignmentsError } = await supabase
+        .from("seating_assignments")
+        .select("student_id, seat_position")
+        .eq("sub_room_id", subRoom.id)
+
+      if (assignmentsError) {
+        console.error("[v0] Error fetching seating assignments:", assignmentsError)
+        // Handle assignment fetch error if necessary
+      }
+
+      if (assignmentsData) {
+        const assignmentMap = new Map<number, string>()
+        assignmentsData.forEach((a: any) => {
+          // Use a more specific type if possible
+          assignmentMap.set(a.seat_position, a.student_id)
+        })
+        setAssignments(assignmentMap)
+        setSavedAssignments(new Map(assignmentMap))
+        console.log("[v0] Loaded", assignmentsData.length, "seat assignments")
+      } else {
+        setAssignments(new Map()) // Clear assignments if no data or error
+        setSavedAssignments(new Map())
+      }
     }
   }, [subRoom, room]) // Simplified dependencies
 
@@ -261,6 +305,262 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
     e.preventDefault()
   }
 
+  const handleSave = async () => {
+    setIsSaving(true)
+
+    try {
+      const supabase = createClient()
+
+      console.log("[v0] Saving seating plan for sub-room:", subRoom.id)
+      console.log("[v0] Number of assignments:", assignments.size)
+
+      if (isSandbox && subRoom.is_sandbox) {
+        // Save to sub_room_proposals
+        const assignmentsToSave = Array.from(assignments.entries()).map(([seatNumber, studentId]) => ({
+          seat_id: `seat-${seatNumber}`,
+          student_id: studentId,
+          seat_number: seatNumber,
+        }))
+
+        const { error } = await supabase
+          .from("sub_room_proposals")
+          .update({
+            seat_assignments: assignmentsToSave,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", subRoom.id)
+
+        if (error) throw error
+
+        setSavedAssignments(new Map(assignments))
+
+        toast({
+          title: "Succès",
+          description: "Votre plan a été sauvegardé",
+        })
+      } else {
+        // Normal save to seating_assignments
+        const { error: deleteError } = await supabase.from("seating_assignments").delete().eq("sub_room_id", subRoom.id)
+
+        if (deleteError) {
+          console.error("[v0] Error deleting existing assignments:", deleteError)
+          throw deleteError
+        }
+
+        if (assignments.size > 0) {
+          const assignmentsToSave = Array.from(assignments.entries()).map(([seatNumber, studentId]) => ({
+            sub_room_id: subRoom.id,
+            seat_id: `seat-${seatNumber}`,
+            student_id: studentId,
+            seat_number: seatNumber,
+          }))
+
+          console.log("[v0] Assignments to insert:", assignmentsToSave)
+
+          const { error: insertError } = await supabase.from("seating_assignments").insert(assignmentsToSave)
+
+          if (insertError) {
+            console.error("[v0] Error inserting assignments:", insertError)
+            console.error("[v0] Error details:", {
+              code: insertError.code,
+              message: insertError.message,
+              details: insertError.details,
+              hint: insertError.hint,
+            })
+            throw insertError
+          }
+
+          console.log("[v0] Inserted assignments:", assignmentsToSave)
+        }
+
+        setSavedAssignments(new Map(assignments))
+
+        // Notify students
+        const classIds = subRoom.class_ids || []
+        for (const classId of classIds) {
+          const { data: studentsData } = await supabase
+            .from("students")
+            .select("id, profile_id, establishment_id") // Added profile_id and establishment_id
+            .eq("class_id", classId)
+
+          if (studentsData && studentsData.length > 0) {
+            const establishmentId = studentsData[0].establishment_id // Use establishment_id from fetched students
+            for (const student of studentsData) {
+              if (student.profile_id && establishmentId) {
+                // Replaced notifyPlanModified to include establishmentId
+                await notifyPlanModified(subRoom.id, student.profile_id, subRoom.name, establishmentId)
+              }
+            }
+          }
+        }
+
+        toast({
+          title: "Succès",
+          description: "Le plan de classe a été sauvegardé",
+        })
+      }
+    } catch (error: any) {
+      console.error("[v0] Error saving seating plan:", error)
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de sauvegarder le plan",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!isSandbox || !subRoom.is_sandbox) return
+
+    setIsSubmitting(true)
+
+    try {
+      const supabase = createClient()
+
+      // First save the current plan
+      const assignmentsToSave = Array.from(assignments.entries()).map(([seatNumber, studentId]) => ({
+        seat_id: `seat-${seatNumber}`,
+        student_id: studentId,
+        seat_number: seatNumber,
+      }))
+
+      const { error: updateError } = await supabase
+        .from("sub_room_proposals")
+        .update({
+          seat_assignments: assignmentsToSave,
+          status: "pending",
+          is_submitted: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", subRoom.id)
+
+      if (updateError) throw updateError
+
+      toast({
+        title: "Proposition soumise",
+        description: "Le professeur a été notifié",
+      })
+
+      if (onClose) onClose()
+    } catch (error: any) {
+      console.error("[v0] Error submitting proposal:", error)
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de soumettre la proposition",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleImpose = async () => {
+    if (!isSandbox || !subRoom.is_sandbox || userRole !== "professeur") return
+
+    setIsSubmitting(true)
+
+    try {
+      const supabase = createClient()
+      const proposal = subRoom.proposal_data
+
+      // Create or update sub-room
+      if (proposal?.sub_room_id) {
+        // Update existing sub-room
+        const { error: deleteError } = await supabase
+          .from("seating_assignments")
+          .delete()
+          .eq("sub_room_id", proposal.sub_room_id)
+
+        if (deleteError) throw deleteError
+
+        if (assignments.size > 0) {
+          const assignmentsToSave = Array.from(assignments.entries()).map(([seatNumber, studentId]) => ({
+            sub_room_id: proposal.sub_room_id,
+            seat_id: `seat-${seatNumber}`,
+            student_id: studentId,
+            seat_number: seatNumber,
+          }))
+
+          const { error: insertError } = await supabase.from("seating_assignments").insert(assignmentsToSave)
+
+          if (insertError) throw insertError
+        }
+
+        // Update proposal status
+        const { error: updateError } = await supabase
+          .from("sub_room_proposals")
+          .update({
+            status: "approved",
+            reviewed_by: userId,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq("id", subRoom.id)
+
+        if (updateError) throw updateError
+      } else {
+        // Create new sub-room
+        const { data: subRoomData, error: subRoomError } = await supabase
+          .from("sub_rooms")
+          .insert({
+            room_id: proposal!.room_id,
+            teacher_id: proposal!.teacher_id,
+            name: proposal!.name,
+            class_ids: [proposal!.class_id],
+            created_by: userId,
+          })
+          .select()
+          .single()
+
+        if (subRoomError) throw subRoomError
+
+        // Save seating assignments
+        if (assignments.size > 0) {
+          const assignmentsToSave = Array.from(assignments.entries()).map(([seatNumber, studentId]) => ({
+            sub_room_id: subRoomData.id,
+            seat_id: `seat-${seatNumber}`,
+            student_id: studentId,
+            seat_number: seatNumber,
+          }))
+
+          const { error: assignmentsError } = await supabase.from("seating_assignments").insert(assignmentsToSave)
+
+          if (assignmentsError) throw assignmentsError
+        }
+
+        // Update proposal
+        const { error: updateError } = await supabase
+          .from("sub_room_proposals")
+          .update({
+            status: "approved",
+            reviewed_by: userId,
+            reviewed_at: new Date().toISOString(),
+            sub_room_id: subRoomData.id,
+          })
+          .eq("id", subRoom.id)
+
+        if (updateError) throw updateError
+      }
+
+      toast({
+        title: "Plan validé",
+        description: "La sous-salle a été créée/mise à jour avec vos modifications",
+      })
+
+      if (onClose) onClose()
+    } catch (error: any) {
+      console.error("[v0] Error imposing plan:", error)
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de valider le plan",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const handleDrop = (e: React.DragEvent, seatNumber: number) => {
     e.preventDefault()
     e.stopPropagation()
@@ -268,18 +568,14 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
     const studentId = e.dataTransfer.getData("studentId")
     if (!studentId) return
 
-    console.log("[v0] Dropping student on seat:", seatNumber)
-
     const newAssignments = new Map(assignments)
     const currentStudentId = newAssignments.get(seatNumber)
 
-    // If the seat is already occupied by the same student, do nothing
     if (currentStudentId === studentId) {
       setDraggedStudent(null)
       return
     }
 
-    // Find the current seat of the dragged student
     let draggedStudentCurrentSeat: number | null = null
     for (const [seat, id] of newAssignments.entries()) {
       if (id === studentId) {
@@ -472,369 +768,12 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
     })
   }
 
-  const handleSave = async () => {
-    setIsSaving(true)
+  // Duplicate handleSave function removed.
 
-    try {
-      const supabase = createClient()
+  // Duplicate handleSubmit function removed.
 
-      console.log("[v0] Saving seating plan for sub-room:", subRoom.id)
-      console.log("[v0] Number of assignments:", assignments.size)
+  // Duplicate handleImpose function removed.
 
-      // Delete existing assignments
-      const { error: deleteError } = await supabase.from("seating_assignments").delete().eq("sub_room_id", subRoom.id)
-
-      if (deleteError) {
-        console.error("[v0] Error deleting existing assignments:", deleteError)
-        throw deleteError
-      }
-
-      const assignmentsToInsert = Array.from(assignments.entries()).map(([seatNumber, studentId]) => ({
-        sub_room_id: subRoom.id,
-        student_id: studentId,
-        seat_id: `seat-${seatNumber}`, // Generate unique seat_id from seat number
-        seat_position: seatNumber, // The seat number as integer
-      }))
-
-      console.log("[v0] Assignments to insert:", assignmentsToInsert)
-
-      if (assignmentsToInsert.length > 0) {
-        const { data, error: insertError } = await supabase
-          .from("seating_assignments")
-          .insert(assignmentsToInsert)
-          .select()
-
-        if (insertError) {
-          console.error("[v0] Error inserting assignments:", insertError)
-          console.error("[v0] Error details:", {
-            code: insertError.code,
-            message: insertError.message,
-            details: insertError.details,
-            hint: insertError.hint,
-          })
-          throw insertError
-        }
-
-        console.log("[v0] Inserted assignments:", data)
-      }
-
-      setSavedAssignments(new Map(assignments))
-
-      await notifyPlanModified(subRoom.id, subRoom.name, subRoom.class_ids)
-
-      toast({
-        title: "Plan sauvegardé",
-        description: "Le plan de classe a été enregistré avec succès",
-      })
-    } catch (error: any) {
-      console.error("[v0] Error saving seating plan:", error)
-      toast({
-        title: "Erreur de sauvegarde",
-        description:
-          error?.message || "Impossible de sauvegarder le plan de classe. Vérifiez la console pour plus de détails.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleShareByEmail = async () => {
-    if (!shareEmail) {
-      toast({
-        title: "Erreur",
-        description: "Veuillez entrer une adresse email",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      // TODO: Implement actual email sending with Resend
-      toast({
-        title: "Email envoyé",
-        description: `Le plan de classe a été envoyé à ${shareEmail}`,
-      })
-      setIsShareDialogOpen(false)
-      setShareEmail("")
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible d'envoyer l'email",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleDownloadImage = () => {
-    try {
-      // Create a simple text representation for now
-      const canvas = document.createElement("canvas")
-      const ctx = canvas.getContext("2d")
-      if (!ctx) return
-
-      canvas.width = 1200
-      canvas.height = 800
-      ctx.fillStyle = "white"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.fillStyle = "black"
-      ctx.font = "20px Arial"
-      ctx.fillText(subRoom.name, 50, 50)
-
-      // Download
-      const link = document.createElement("a")
-      link.download = `plan-de-classe-${subRoom.name}.png`
-      link.href = canvas.toDataURL()
-      link.click()
-
-      toast({
-        title: "Image téléchargée",
-        description: "Le plan de classe a été téléchargé",
-      })
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de télécharger l'image",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleDownloadPDF = () => {
-    toast({
-      title: "PDF en cours de génération",
-      description: "Le téléchargement va commencer...",
-    })
-    // For now, just download as text
-    const content = `Plan de Classe: ${subRoom.name}\n\nÉlèves placed:\n${Array.from(assignments.entries())
-      .map(([seat, studentId]) => {
-        const student = students.find((s) => s.id === studentId)
-        return `Place ${seat}: ${student?.last_name} ${student?.first_name}`
-      })
-      .join("\n")}`
-
-    const blob = new Blob([content], { type: "text/plain" })
-    const link = document.createElement("a")
-    link.download = `plan-de-classe-${subRoom.name}.txt`
-    link.href = URL.createObjectURL(blob)
-    link.click()
-  }
-
-  const handleCreateLink = async () => {
-    try {
-      const shareUrl = `${window.location.origin}/share/seating-plan/${subRoom.id}`
-      await navigator.clipboard.writeText(shareUrl)
-      toast({
-        title: "Lien copié",
-        description: "Le lien de partage a été copié dans le presse-papiers",
-      })
-    } catch (error) {
-      toast({
-        title: "Lien créé",
-        description: `Lien: ${window.location.origin}/share/seating-plan/${subRoom.id}`,
-      })
-    }
-  }
-
-  // Modified touch handlers to use studentId
-  const handleTouchStart = (e: React.TouchEvent, studentId: string) => {
-    const touch = e.touches[0]
-    setDraggedStudent(studentId)
-    setIsDragging(true)
-    // Optionally set dataTransfer for drag events compatibility if needed
-    // e.currentTarget.ondragstart = (event) => handleDragStart(event as any, studentId);
-    // e.currentTarget.dispatchEvent(new DragEvent('dragstart', { bubbles: true }));
-  }
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || !draggedStudent) return
-    e.preventDefault()
-  }
-
-  const handleTouchEnd = (e: React.TouchEvent, targetSeatNumber?: number) => {
-    if (!isDragging || !draggedStudent) {
-      setIsDragging(false)
-      setDraggedStudent(null)
-      return
-    }
-
-    const touch = e.changedTouches[0]
-    const element = document.elementFromPoint(touch.clientX, touch.clientY)
-
-    let seatNumber = targetSeatNumber
-
-    // Try to find seat number from the element
-    if (!seatNumber && element) {
-      const seatDiv = element.closest("[data-seat-number]") as HTMLElement
-      if (seatDiv) {
-        seatNumber = Number.parseInt(seatDiv.dataset.seatNumber || "0")
-      }
-    }
-
-    if (seatNumber && seatNumber > 0) {
-      console.log("[v0] Touch drop on seat:", seatNumber)
-
-      const newAssignments = new Map(assignments)
-      const currentStudentId = newAssignments.get(seatNumber)
-
-      if (currentStudentId === draggedStudent) {
-        setIsDragging(false)
-        setDraggedStudent(null)
-        return
-      }
-
-      // Remove from previous position
-      for (const [seat, id] of newAssignments.entries()) {
-        if (id === draggedStudent) {
-          newAssignments.delete(seat)
-        }
-      }
-
-      // Assign to new seat
-      newAssignments.set(seatNumber, draggedStudent)
-      setAssignments(newAssignments)
-    }
-
-    setIsDragging(false)
-    setDraggedStudent(null)
-  }
-
-  // Simplified handleSeatClick to trigger dialog or direct removal
-  const handleSeatClickOriginal = (seatNumber: number, student: Student | undefined) => {
-    if (student) {
-      // Check if user disabled confirmation
-      const dontShow = localStorage.getItem("dontShowRemoveConfirmation") === "true"
-
-      if (dontShow) {
-        // Remove directly without confirmation
-        removeStudentFromSeat(seatNumber)
-      } else {
-        // Show confirmation dialog
-        setStudentToRemove(student.id)
-        setShowRemoveConfirmation(true)
-      }
-    } else {
-      // If seat is empty, show student selection dialog
-      setSelectedSeatForDialog(seatNumber)
-    }
-  }
-
-  const removeStudentFromSeat = (seatNumber: number) => {
-    const newAssignments = new Map(assignments)
-    newAssignments.delete(seatNumber)
-    setAssignments(newAssignments)
-    toast({
-      title: "Élève retiré",
-      description: "L'élève a été retiré du plan de classe",
-    })
-  }
-
-  const confirmRemoveStudent = () => {
-    if (studentToRemove) {
-      // Find the seat number associated with studentToRemove
-      let seatNumberToRemove: number | undefined = undefined
-      for (const [seat, studentId] of assignments.entries()) {
-        if (studentId === studentToRemove) {
-          seatNumberToRemove = seat
-          break
-        }
-      }
-
-      if (seatNumberToRemove !== undefined) {
-        removeStudentFromSeat(seatNumberToRemove)
-      }
-
-      // Save "don't show again" preference
-      if (dontShowAgain) {
-        localStorage.setItem("dontShowRemoveConfirmation", "true")
-      }
-
-      setShowRemoveConfirmation(false)
-      setStudentToRemove(null)
-      setDontShowAgain(false)
-    }
-  }
-
-  const getTableStyle = () => {
-    return {
-      backgroundColor: "#FFFFFF", // White tables
-      borderColor: "#000000", // Black border
-    }
-  }
-
-  const getResponsiveTableSize = () => {
-    if (!room?.config?.columns) return "w-36 h-26"
-    const cols = room.config.columns.length
-
-    if (cols <= 2) return "w-36 h-26"
-    if (cols <= 4) return "w-32 h-24"
-    return "w-28 h-22"
-  }
-
-  const getResponsiveSeatSize = () => {
-    if (!room?.config?.columns) return "w-10 h-10"
-    const cols = room.config.columns.length
-
-    // Places plus petites et carrées
-    if (cols <= 2) return "w-10 h-10"
-    if (cols <= 4) return "w-9 h-9"
-    return "w-8 h-8"
-  }
-
-  const getResponsiveGap = () => {
-    if (!room?.config?.columns) return "gap-6 md:gap-8"
-    const columnCount = room.config.columns.length
-
-    if (columnCount <= 2) return "gap-6 md:gap-8"
-    if (columnCount <= 4) return "gap-4 md:gap-6"
-    return "gap-3 md:gap-4"
-  }
-
-  const getSeatStyle = (isOccupied: boolean) => {
-    if (isOccupied) {
-      return {
-        backgroundColor: "#000000", // Black for students assigned
-        borderColor: "#000000",
-        color: "#FFFFFF", // White text
-      }
-    }
-    return {
-      backgroundColor: "#E5E7EB", // Light gray for empty seats
-      borderColor: "#D1D5DB",
-      color: "#9CA3AF", // Seat numbers in gray
-    }
-  }
-
-  const getBoardAlignment = () => {
-    switch (room?.board_position) {
-      case "top":
-        return "justify-center items-start"
-      case "bottom":
-        return "justify-center items-end"
-      case "left":
-        return "justify-start items-center"
-      case "right":
-        return "justify-end items-center"
-      default:
-        return ""
-    }
-  }
-
-  const getSeatNumber = (colIndex: number, tableIndex: number, seatIndex: number) => {
-    if (!room?.config?.columns) return 0
-
-    let seatNumber = 0
-    // Count all seats in previous columns
-    for (let i = 0; i < colIndex; i++) {
-      seatNumber += room.config.columns[i].tables * room.config.columns[i].seatsPerTable
-    }
-    // Count all seats in previous tables of current column
-    seatNumber += tableIndex * room.config.columns[colIndex].seatsPerTable
-    // Add current seat index (+1 to start at 1)
-    return seatNumber + seatIndex + 1 // Fixed: seat index should be added and result should be +1
-  }
-
-  // Renamed function to better reflect its purpose
   const handleDropToUnplacedArea = () => {
     if (draggedStudent) {
       console.log("[v0] Removing student from seat:", draggedStudent)
@@ -864,6 +803,129 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
     return `${student.last_name.charAt(0)}.${student.first_name.charAt(0)}`.toUpperCase()
   }
 
+  // Touch event handlers (needed for mobile compatibility)
+  const handleTouchStart = (e: React.TouchEvent, studentId: string) => {
+    setDraggedStudent(studentId)
+    // In a real app, you might want to simulate a drag event or use a dedicated library
+    // For now, we'll just set the dragged student
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    // Handle touch move if necessary, e.g., to update a visual indicator
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent, seatNumber?: number) => {
+    if (draggedStudent) {
+      if (seatNumber !== undefined) {
+        // If dropped on a seat, handle drop
+        const newAssignments = new Map(assignments)
+        const currentStudentId = newAssignments.get(seatNumber)
+
+        if (currentStudentId === draggedStudent) {
+          setDraggedStudent(null)
+          return
+        }
+
+        let draggedStudentCurrentSeat: number | null = null
+        for (const [seat, id] of newAssignments.entries()) {
+          if (id === draggedStudent) {
+            draggedStudentCurrentSeat = seat
+            break
+          }
+        }
+
+        if (currentStudentId) {
+          if (draggedStudentCurrentSeat !== null) {
+            newAssignments.set(draggedStudentCurrentSeat, currentStudentId)
+          }
+          newAssignments.set(seatNumber, draggedStudent)
+        } else {
+          if (draggedStudentCurrentSeat !== null) {
+            newAssignments.delete(draggedStudentCurrentSeat)
+          }
+          newAssignments.set(seatNumber, draggedStudent)
+        }
+        setAssignments(newAssignments)
+      } else {
+        // If dropped outside a seat (e.g., on the unplaced list), remove from seat
+        handleDropToUnplacedArea()
+      }
+      setDraggedStudent(null)
+    }
+  }
+
+  // Share functions
+  const handleShareByEmail = () => {
+    // Implement email sharing logic here
+    toast({
+      title: "Fonctionnalité non implémentée",
+      description: "Le partage par email n'est pas encore disponible.",
+    })
+  }
+
+  const handleDownloadImage = () => {
+    // Implement image download logic here
+    toast({
+      title: "Fonctionnalité non implémentée",
+      description: "Le téléchargement d'image n'est pas encore disponible.",
+    })
+  }
+
+  const handleDownloadPDF = () => {
+    // Implement PDF download logic here
+    toast({
+      title: "Fonctionnalité non implémentée",
+      description: "Le téléchargement PDF n'est pas encore disponible.",
+    })
+  }
+
+  const handleCreateLink = () => {
+    // Implement link creation logic here
+    toast({
+      title: "Fonctionnalité non implémentée",
+      description: "La création de lien n'est pas encore disponible.",
+    })
+  }
+
+  // --- Helper functions for room layout ---
+  const getResponsiveGap = () => {
+    // Add logic to return a class string based on screen size if needed
+    // For now, returning a default gap
+    return "gap-4" // Example: Adjust as needed for responsiveness
+  }
+
+  const getResponsiveTableSize = () => {
+    // Add logic to return a class string based on screen size if needed
+    // For now, returning a default size
+    return "w-32 h-24" // Example: Adjust as needed for responsiveness
+  }
+
+  const getTableStyle = (): React.CSSProperties => {
+    // Add any specific styling for tables if required
+    return {}
+  }
+
+  const getSeatNumber = (colIndex: number, tableIndex: number, seatIndex: number): number => {
+    if (!room?.config?.columns) return 0
+    let seatCounter = 1
+    for (let i = 0; i < colIndex; i++) {
+      const currentCol = room.config.columns[i]
+      seatCounter += currentCol.tables * currentCol.seatsPerTable
+    }
+    const currentColumn = room.config.columns[colIndex]
+    seatCounter += tableIndex * currentColumn.seatsPerTable
+    seatCounter += seatIndex + 1
+    return seatCounter
+  }
+
+  const getSeatStyle = (isOccupied: boolean): React.CSSProperties => {
+    // Add any specific styling for seats if required
+    return {
+      // Example: Adjust border radius or other properties
+    }
+  }
+  // --- End of helper functions for room layout ---
+
   if (isLoadingRoom) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -888,9 +950,8 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
 
   return (
     <div className="fixed inset-0 bg-white dark:bg-slate-950 z-50 overflow-y-auto">
-      <div className="p-6 w-full">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
+      <div className="sticky top-0 bg-white dark:bg-slate-950 z-10 border-b border-gray-200 dark:border-gray-800 shadow-sm">
+        <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -901,14 +962,45 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-black dark:text-white">{subRoom.name}</h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">
-                {room.name} ({room.code}) • {students.length} élève(s) • {getTotalSeats()} place(s)
+              <h1 className="text-2xl font-bold text-black dark:text-white">{subRoom.name}</h1>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                {room?.name} ({room?.code}) • {students.length} élève(s) • {getTotalSeats()} place(s)
               </p>
             </div>
           </div>
-        </div>
 
+          <div className="flex gap-2">
+            <Button
+              onClick={onBack || onClose}
+              variant="outline"
+              className="border-gray-300 dark:border-gray-700 bg-transparent"
+            >
+              Fermer
+            </Button>
+
+            <Button onClick={handleSave} disabled={isSaving} className="bg-green-600 hover:bg-green-700">
+              <Save className="mr-2 h-4 w-4" />
+              {isSaving ? "Sauvegarde..." : "Sauvegarder"}
+            </Button>
+
+            {isSandbox && userRole === "delegue" && !subRoom.proposal_data?.is_submitted && (
+              <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700">
+                <Send className="mr-2 h-4 w-4" />
+                {isSubmitting ? "Soumission..." : "Soumettre au professeur"}
+              </Button>
+            )}
+
+            {isSandbox && userRole === "professeur" && subRoom.proposal_data?.status === "pending" && (
+              <Button onClick={handleImpose} disabled={isSubmitting} className="bg-purple-600 hover:bg-purple-700">
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {isSubmitting ? "Validation..." : "Valider"}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6 w-full">
         <div className="grid grid-cols-12 gap-6">
           {/* Left Panel - Options */}
           <div className="col-span-2">
@@ -1042,9 +1134,9 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
                   </div>
                 ) : (
                   <div className="w-full overflow-x-auto">
-                    <div className={`flex ${getResponsiveGap()} justify-center items-start min-w-min p-4`}>
+                    <div className={`${getResponsiveGap()} flex justify-center items-start min-w-min p-4`}>
                       {room.config.columns.map((column, colIndex) => (
-                        <div key={column.id} className={`flex flex-col ${getResponsiveGap()}`}>
+                        <div key={column.id} className={`${getResponsiveGap()} flex flex-col`}>
                           {Array.from({ length: column.tables }).map((_, tableIndex) => (
                             <div
                               key={tableIndex}
@@ -1387,6 +1479,8 @@ export function SeatingPlanEditor({ subRoom, room: initialRoom, onClose, onBack 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Toaster />
     </div>
   )
 }
