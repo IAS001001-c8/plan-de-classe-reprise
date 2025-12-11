@@ -469,7 +469,8 @@ export function RoomsManagement({ rooms: initialRooms, establishmentId }: RoomsM
   }
 
   const isVieScolaire = user?.role === "vie-scolaire"
-  const canModifyRooms = isVieScolaire
+  const isTeacher = user?.role === "professeur"
+  const canModifyRooms = isVieScolaire || isTeacher
   const canViewRooms = true // Everyone can view rooms
 
   const handleCreateFromRoom = (roomId: string) => {
