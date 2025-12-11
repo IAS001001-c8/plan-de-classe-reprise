@@ -391,6 +391,9 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
   }
 
   const toggleSubRoomSelection = (subRoomId: string) => {
+    if (userRole === "eleve") {
+      return
+    }
     setSelectedSubRoomIds((prev) =>
       prev.includes(subRoomId) ? prev.filter((id) => id !== subRoomId) : [...prev, subRoomId],
     )
@@ -595,7 +598,7 @@ export function SeatingPlanManagement({ establishmentId, userRole, userId, onBac
           />
         )}
 
-        {selectedSubRoomIds.length > 0 && (
+        {selectedSubRoomIds.length > 0 && userRole !== "eleve" && (
           <div className="fixed bottom-6 right-6 z-50">
             <Button
               variant="destructive"

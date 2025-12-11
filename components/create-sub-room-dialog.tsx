@@ -211,6 +211,18 @@ export function CreateSubRoomDialog({
       return
     }
 
+    if (
+      isProfessor &&
+      !formData.isCollaborative &&
+      currentTeacherId &&
+      !formData.selectedTeachers.includes(currentTeacherId)
+    ) {
+      alert(
+        "Vous ne pouvez pas créer une salle individuelle pour un autre professeur. Utilisez l'option 'Salle collaborative' pour ajouter d'autres professeurs.",
+      )
+      return
+    }
+
     setIsLoading(true)
     try {
       const selectedRoom = rooms.find((r) => r.id === formData.roomId)

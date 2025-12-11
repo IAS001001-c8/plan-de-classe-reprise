@@ -33,8 +33,6 @@ import {
   X,
   LayoutTemplate,
   Sparkles,
-  Grid3x3,
-  LayoutGrid,
   Trash2,
 } from "lucide-react"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
@@ -537,43 +535,35 @@ export function RoomsManagement({ rooms: initialRooms, establishmentId }: RoomsM
           </div>
         </div>
 
-        {canModifyRooms && (
-          <Card className="mb-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-emerald-200 dark:border-emerald-800 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl text-emerald-900 dark:text-emerald-100">
-                Créer une nouvelle salle
-              </CardTitle>
-              <CardDescription>Utilisez un template prédéfini ou créez une configuration personnalisée</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-4">
-                <Button
-                  onClick={() => setIsCreateTemplateDialogOpen(true)}
-                  variant="outline"
-                  className="flex-1 h-20 border-2 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                >
-                  <Plus className="mr-2 h-5 w-5" />
-                  Créer un template
-                </Button>
-                <Button
-                  onClick={() => setIsCreateDialogOpen(true)}
-                  variant="outline"
-                  className="flex-1 h-20 border-2 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                >
-                  <Grid3x3 className="mr-2 h-5 w-5" />
-                  Templates
-                </Button>
-                <Button
-                  onClick={handleCustomCreation}
-                  className="flex-1 h-20 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg"
-                >
-                  <LayoutGrid className="mr-2 h-5 w-5" />
-                  Personnalisée
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Card className="mb-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-200 dark:border-emerald-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg text-emerald-900 dark:text-emerald-100">Créer une nouvelle salle</CardTitle>
+            <CardDescription className="text-sm">
+              Utilisez un template prédéfini ou créez une configuration personnalisée
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setIsTemplateDialogOpen(true)}
+                size="default"
+                variant="outline"
+                className="flex-1 border-emerald-300 hover:bg-emerald-50 hover:border-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-900/20"
+              >
+                <LayoutTemplate className="mr-2 h-4 w-4" />
+                Templates
+              </Button>
+              <Button
+                onClick={handleCustomCreation}
+                size="default"
+                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                Personnalisée
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {canModifyRooms && (
           <div className="mb-6 flex items-center gap-2">
