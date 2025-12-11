@@ -47,11 +47,10 @@ export function ReviewProposalDialog({
     setAction("approve")
 
     try {
-      // Create real sub-room from proposal
       const { data: subRoomData, error: subRoomError } = await supabase
         .from("sub_rooms")
         .insert({
-          room_id: proposal.room_id,
+          room_id: proposal.room_id, // Use the room_id from the proposal
           teacher_id: proposal.teacher_id,
           name: proposal.name,
           class_ids: [proposal.class_id],
@@ -61,6 +60,21 @@ export function ReviewProposalDialog({
         .single()
 
       if (subRoomError) throw subRoomError
+
+      // Copy seating assignments if they exist
+      if (proposal.seat_assignments && proposal.seat_assignments.length > 0) {
+        const assignments = proposal.seat_assignments.map((assignment: any) => ({
+          sub_room_id: subRoomData.id,
+          seat_id: assignment.seat_id,
+          student_id: assignment.student_id,
+        }))
+
+        const { error: assignmentsError } = await supabase.from("seating_assignments").insert(assignments)
+
+        if (assignmentsError) {
+          console.error("[v0] Error saving assignments:", assignmentsError)
+        }
+      }
 
       // Update proposal status
       const { error: updateError } = await supabase
@@ -229,6 +243,13 @@ export function ReviewProposalDialog({
               </div>
             )}
           </div>
+
+          {proposal.comments && (
+            <div className="bg-gray-50 border border-gray-200 rounded p-3">
+              <p className="font-semibold text-sm mb-1">Commentaires</p>
+              <p className="text-sm">{proposal.comments}</p>
+            </div>
+          )}
 
           {proposal.status === "rejected" && proposal.rejection_reason && (
             <div className="bg-red-50 border border-red-200 rounded p-4">

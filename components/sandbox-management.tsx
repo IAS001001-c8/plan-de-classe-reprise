@@ -4,11 +4,12 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Plus, Clock, CheckCircle2, XCircle, Eye } from "lucide-react"
+import { ArrowLeft, Plus, Clock, CheckCircle2, XCircle, Eye, Edit, FileText } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
 import { toast } from "@/components/ui/use-toast"
 import { CreateProposalDialog } from "@/components/create-proposal-dialog"
 import { ReviewProposalDialog } from "@/components/review-proposal-dialog"
+import { ProposalEditor } from "@/components/proposal-editor"
 
 interface SandboxManagementProps {
   establishmentId: string
@@ -20,8 +21,15 @@ interface SandboxManagementProps {
 interface Proposal {
   id: string
   name: string
-  status: "pending" | "approved" | "rejected"
+  status: "draft" | "pending" | "approved" | "rejected"
+  is_submitted: boolean
   created_at: string
+  room_id: string
+  class_id: string
+  teacher_id: string
+  sub_room_id?: string
+  seat_assignments?: any[]
+  comments?: string
   rooms: { name: string; code: string }
   classes: { name: string }
   teachers: { first_name: string; last_name: string }
@@ -37,6 +45,7 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false)
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -58,9 +67,16 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
           id,
           name,
           status,
+          is_submitted,
           created_at,
           reviewed_at,
           rejection_reason,
+          room_id,
+          class_id,
+          teacher_id,
+          sub_room_id,
+          seat_assignments,
+          comments,
           rooms:room_id (name, code),
           classes:class_id (name),
           teachers:teacher_id (first_name, last_name),
@@ -69,19 +85,15 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
         `)
         .order("created_at", { ascending: false })
 
-      // Filter based on role
       if (userRole === "delegue" || userRole === "eco-delegue") {
-        // Delegates see only their proposals
         query = query.eq("proposed_by", userId)
       } else if (userRole === "professeur") {
-        // Teachers see proposals assigned to them
         const { data: teacherData } = await supabase.from("teachers").select("id").eq("profile_id", userId).single()
 
         if (teacherData) {
-          query = query.eq("teacher_id", teacherData.id)
+          query = query.eq("teacher_id", teacherData.id).eq("is_submitted", true)
         }
       }
-      // vie-scolaire sees all proposals in establishment
 
       const { data, error } = await query
 
@@ -101,8 +113,17 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (proposal: Proposal) => {
+    if (!proposal.is_submitted) {
+      return (
+        <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-300">
+          <FileText className="w-3 h-3 mr-1" />
+          Brouillon
+        </Badge>
+      )
+    }
+
+    switch (proposal.status) {
       case "pending":
         return (
           <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
@@ -129,9 +150,18 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
     }
   }
 
+  const handleEditProposal = (proposal: Proposal) => {
+    setSelectedProposal(proposal)
+    setIsEditorOpen(true)
+  }
+
   const handleReviewProposal = (proposal: Proposal) => {
     setSelectedProposal(proposal)
-    setIsReviewDialogOpen(true)
+    if (isTeacher && proposal.status === "pending") {
+      setIsEditorOpen(true) // Teachers edit in the editor too
+    } else {
+      setIsReviewDialogOpen(true)
+    }
   }
 
   const isDelegateOrEco = userRole === "delegue" || userRole === "eco-delegue"
@@ -193,7 +223,7 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
                       {proposal.rooms?.name} - {proposal.classes?.name}
                     </CardDescription>
                   </div>
-                  {getStatusBadge(proposal.status)}
+                  {getStatusBadge(proposal)}
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -236,20 +266,33 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
                 )}
 
                 <div className="flex gap-2 pt-2">
-                  {proposal.status === "pending" && isTeacher && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleReviewProposal(proposal)}
-                        className="flex-1"
-                      >
-                        <Eye className="w-3 h-3 mr-1" />
-                        Examiner
-                      </Button>
-                    </>
+                  {isDelegateOrEco && !proposal.is_submitted && (
+                    <Button size="sm" variant="outline" onClick={() => handleEditProposal(proposal)} className="flex-1">
+                      <Edit className="w-3 h-3 mr-1" />
+                      Éditer
+                    </Button>
                   )}
-                  {proposal.status === "pending" && isDelegateOrEco && (
+
+                  {isDelegateOrEco && proposal.status === "rejected" && (
+                    <Button size="sm" variant="outline" onClick={() => handleEditProposal(proposal)} className="flex-1">
+                      <Edit className="w-3 h-3 mr-1" />
+                      Modifier et resoumettre
+                    </Button>
+                  )}
+
+                  {proposal.status === "pending" && isTeacher && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => handleReviewProposal(proposal)}
+                      className="flex-1"
+                    >
+                      <Edit className="w-3 h-3 mr-1" />
+                      Réviser
+                    </Button>
+                  )}
+
+                  {(proposal.status === "approved" || (proposal.status === "pending" && isDelegateOrEco)) && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -258,17 +301,6 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
                     >
                       <Eye className="w-3 h-3 mr-1" />
                       Voir
-                    </Button>
-                  )}
-                  {(proposal.status === "approved" || proposal.status === "rejected") && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleReviewProposal(proposal)}
-                      className="flex-1"
-                    >
-                      <Eye className="w-3 h-3 mr-1" />
-                      Détails
                     </Button>
                   )}
                 </div>
@@ -288,6 +320,15 @@ export function SandboxManagement({ establishmentId, userRole, userId, onBack }:
           setIsCreateDialogOpen(false)
           fetchProposals()
         }}
+      />
+
+      <ProposalEditor
+        open={isEditorOpen}
+        onOpenChange={setIsEditorOpen}
+        proposal={selectedProposal}
+        userRole={userRole}
+        userId={userId}
+        onSuccess={fetchProposals}
       />
 
       <ReviewProposalDialog
