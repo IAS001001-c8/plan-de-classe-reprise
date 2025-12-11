@@ -466,15 +466,33 @@ export function SeatingPlanEditor({
     try {
       const supabase = createClient()
 
-      const { error } = await supabase
+      console.log("[v0] === SUBMISSION DEBUG ===")
+      console.log("[v0] subRoom object:", subRoom)
+      console.log("[v0] subRoom.id:", subRoom.id)
+      console.log("[v0] subRoom.proposal_data:", subRoom.proposal_data)
+      console.log("[v0] Attempting to update proposal with ID:", subRoom.id)
+
+      const { data, error } = await supabase
         .from("sub_room_proposals")
         .update({
           status: "submitted",
           updated_at: new Date().toISOString(),
         })
         .eq("id", subRoom.id)
+        .select()
 
-      if (error) throw error
+      console.log("[v0] Update response - data:", data)
+      console.log("[v0] Update response - error:", error)
+
+      if (error) {
+        console.error("[v0] Supabase error details:", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        })
+        throw error
+      }
 
       toast({
         title: "Succès",
