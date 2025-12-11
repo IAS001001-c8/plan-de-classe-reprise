@@ -694,22 +694,6 @@ export function RoomsManagement({ rooms: initialRooms, establishmentId }: RoomsM
           </Card>
         )}
 
-        {filteredRooms.length === 0 && (
-          <Card className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-emerald-200 dark:border-emerald-800">
-            <CardContent className="py-16 text-center">
-              <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center mx-auto mb-4">
-                <Search className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                {searchQuery ? "Aucune salle trouvée" : "Aucune salle créée"}
-              </h3>
-              <p className="text-muted-foreground">
-                {searchQuery ? "Essayez avec un autre terme de recherche" : "Commencez par créer votre première salle"}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
         {canModifyRooms && (
           <Card className="mb-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-emerald-200 dark:border-emerald-800 shadow-lg">
             <CardHeader>
@@ -744,6 +728,22 @@ export function RoomsManagement({ rooms: initialRooms, establishmentId }: RoomsM
                   Personnalisée
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {filteredRooms.length === 0 && (
+          <Card className="bg-white/50 dark:bg-slate-800/50 backdrop-blur border-dashed border-2 border-emerald-300 dark:border-emerald-700">
+            <CardContent className="py-16 text-center">
+              <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center mx-auto mb-4">
+                <Search className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                {searchQuery ? "Aucune salle trouvée" : "Aucune salle créée"}
+              </h3>
+              <p className="text-muted-foreground">
+                {searchQuery ? "Essayez avec un autre terme de recherche" : "Commencez par créer votre première salle"}
+              </p>
             </CardContent>
           </Card>
         )}
