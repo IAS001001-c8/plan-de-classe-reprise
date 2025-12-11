@@ -22,20 +22,23 @@ interface Notification {
 
 interface NotificationsDropdownProps {
   userId: string
+  establishmentId: string // Added to filter notifications properly
 }
 
-export function NotificationsDropdown({ userId }: NotificationsDropdownProps) {
+export function NotificationsDropdown({ userId, establishmentId }: NotificationsDropdownProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
   const router = useRouter()
 
   const fetchNotifications = async () => {
+    console.log("[v0] Fetching notifications for user:", userId)
     const supabase = createClient()
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
       .eq("user_id", userId)
+      .eq("establishment_id", establishmentId) // Added filter for establishmentId
       .order("created_at", { ascending: false })
       .limit(10)
 
@@ -44,6 +47,7 @@ export function NotificationsDropdown({ userId }: NotificationsDropdownProps) {
       return
     }
 
+    console.log("[v0] Fetched notifications:", data?.length || 0)
     setNotifications(data || [])
     setUnreadCount(data?.filter((n) => !n.is_read).length || 0)
   }
@@ -51,10 +55,9 @@ export function NotificationsDropdown({ userId }: NotificationsDropdownProps) {
   useEffect(() => {
     fetchNotifications()
 
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000)
+    const interval = setInterval(fetchNotifications, 10000)
     return () => clearInterval(interval)
-  }, [userId])
+  }, [userId, establishmentId]) // Added establishmentId to dependency array
 
   const handleMarkAsRead = async (notificationId: string) => {
     const supabase = createClient()
@@ -89,6 +92,7 @@ export function NotificationsDropdown({ userId }: NotificationsDropdownProps) {
       .from("notifications")
       .update({ is_read: true })
       .eq("user_id", userId)
+      .eq("establishment_id", establishmentId) // Added filter for establishmentId
       .eq("is_read", false)
 
     if (error) {
