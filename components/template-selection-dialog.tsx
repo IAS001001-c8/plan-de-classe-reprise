@@ -20,8 +20,8 @@ interface TemplateSelectionDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSelectTemplate: (template: RoomTemplate) => void
-  userId: string
-  establishmentId: string
+  userId?: string
+  establishmentId?: string
 }
 
 export function TemplateSelectionDialog({
@@ -36,12 +36,14 @@ export function TemplateSelectionDialog({
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    if (open) {
+    if (open && establishmentId) {
       loadTemplates()
     }
   }, [open, establishmentId])
 
   const loadTemplates = async () => {
+    if (!establishmentId) return
+
     setIsLoading(true)
     try {
       const templates = await loadCustomTemplates(establishmentId)
@@ -55,6 +57,15 @@ export function TemplateSelectionDialog({
 
   const handleTogglePin = async (templateId: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!establishmentId) {
+      toast({
+        title: "Erreur",
+        description: "Établissement non trouvé",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       await toggleTemplatePin(templateId, establishmentId)
       await loadTemplates()

@@ -468,8 +468,15 @@ export function RoomsManagement({ rooms: initialRooms, establishmentId }: RoomsM
     }
   }
 
-  const isVieScolaire = user?.role === "vie-scolaire"
-  const canModifyRooms = isVieScolaire
+  const userRole = user?.role
+  const isVieScolaire = userRole === "vie-scolaire"
+  const isTeacher = userRole === "professeur"
+  const isDelegue = userRole === "delegue" || userRole === "eco-delegue"
+  const isStudent = userRole === "student"
+
+  const canModifyRooms = isVieScolaire || isTeacher
+  const canViewCreationSection = isVieScolaire || isTeacher || isDelegue
+
   const canViewRooms = true // Everyone can view rooms
 
   const handleCreateFromRoom = (roomId: string) => {
@@ -536,7 +543,7 @@ export function RoomsManagement({ rooms: initialRooms, establishmentId }: RoomsM
           </div>
         </div>
 
-        {canModifyRooms && (
+        {canViewCreationSection && (
           <Card className="mb-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-emerald-200 dark:border-emerald-800 shadow-lg">
             <CardHeader>
               <CardTitle className="text-2xl text-emerald-900 dark:text-emerald-100">
