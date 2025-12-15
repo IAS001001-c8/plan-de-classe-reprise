@@ -113,8 +113,7 @@ export function RoomsManagement({ rooms, establishmentId, userRole, userId, onBa
   const isDelegate = effectiveUserRole === "delegue_adjoint"
   const isTeacher = effectiveUserRole === "professeur"
 
-  // Les professeurs peuvent maintenant TOUJOURS modifier les salles
-  const canModifyRooms = isVieScolaire || isTeacher || isDelegate
+  const canModifyRooms = true
 
   console.log("[v0] RoomsManagement - Permissions:", {
     userRole: effectiveUserRole,
@@ -585,43 +584,41 @@ export function RoomsManagement({ rooms, establishmentId, userRole, userId, onBa
           )}
         </div>
 
-        {canModifyRooms && (
-          <Card className="mb-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-200 dark:border-emerald-800">
-            <CardHeader>
-              <CardTitle className="text-emerald-900 dark:text-emerald-100">Créer une nouvelle salle</CardTitle>
-              <CardDescription className="text-emerald-700 dark:text-emerald-300">
-                Choisissez comment créer votre salle
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button
-                  onClick={() => setIsCreateTemplateDialogOpen(true)}
-                  variant="outline"
-                  className="flex-1 h-20 border-2 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                >
-                  <Plus className="mr-2 h-5 w-5" />
-                  Créer un template
-                </Button>
-                <Button
-                  onClick={() => setIsTemplateDialogOpen(true)}
-                  variant="outline"
-                  className="flex-1 h-20 border-2 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                >
-                  <Grid3x3 className="mr-2 h-5 w-5" />
-                  Templates
-                </Button>
-                <Button
-                  onClick={handleCustomCreation}
-                  className="flex-1 h-20 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg"
-                >
-                  <LayoutGrid className="mr-2 h-5 w-5" />
-                  Personnalisée
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Card className="mb-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-200 dark:border-emerald-800">
+          <CardHeader>
+            <CardTitle className="text-emerald-900 dark:text-emerald-100">Créer une nouvelle salle</CardTitle>
+            <CardDescription className="text-emerald-700 dark:text-emerald-300">
+              Choisissez comment créer votre salle
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Button
+                onClick={() => setIsCreateTemplateDialogOpen(true)}
+                variant="outline"
+                className="flex-1 h-20 border-2 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+              >
+                <Plus className="mr-2 h-5 w-5" />
+                Créer un template
+              </Button>
+              <Button
+                onClick={() => setIsTemplateDialogOpen(true)}
+                variant="outline"
+                className="flex-1 h-20 border-2 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+              >
+                <Grid3x3 className="mr-2 h-5 w-5" />
+                Templates
+              </Button>
+              <Button
+                onClick={handleCustomCreation}
+                className="flex-1 h-20 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg"
+              >
+                <LayoutGrid className="mr-2 h-5 w-5" />
+                Personnalisée
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {canModifyRooms && (
           <div className="flex items-center justify-between mb-4">
@@ -684,60 +681,58 @@ export function RoomsManagement({ rooms, establishmentId, userRole, userId, onBa
                       />
                     )}
                     <div className="flex-1" />
-                    {canModifyRooms && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                            <span className="sr-only">Menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleViewRoom(room)
-                            }}
-                          >
-                            <Eye className="mr-2 h-4 w-4" />
-                            Voir
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDuplicateRooms([room.id])
-                            }}
-                          >
-                            <Copy className="mr-2 h-4 w-4" />
-                            Dupliquer
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              openEditDialog(room)
-                            }}
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Modifier
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              openDeleteDialog([room.id])
-                            }}
-                            className="text-red-600"
-                          >
-                            <Trash className="mr-2 h-4 w-4" />
-                            Supprimer
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild={false}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">Menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleViewRoom(room)
+                          }}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          Voir
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDuplicateRooms([room.id])
+                          }}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          Dupliquer
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEditDialog(room)
+                          }}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Modifier
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openDeleteDialog([room.id])
+                          }}
+                          className="text-red-600"
+                        >
+                          <Trash className="mr-2 h-4 w-4" />
+                          Supprimer
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   <div className="space-y-2">
                     <h3 className="font-bold text-lg text-slate-900 dark:text-white">{room.name}</h3>
@@ -1151,17 +1146,23 @@ export function RoomsManagement({ rooms, establishmentId, userRole, userId, onBa
           onSuccess={fetchRooms}
         />
 
-        {preselectedRoomId && (
-          <CreateSubRoomDialog
-            open={!!preselectedRoomId}
-            onOpenChange={(open) => !open && setPreselectedRoomId(null)}
-            establishmentId={establishmentId}
-            userId={effectiveUserId}
-            userRole={effectiveUserRole}
-            onSuccess={fetchRooms}
-            preselectedRoomId={preselectedRoomId}
-          />
-        )}
+        <CreateSubRoomDialog
+          open={!!preselectedRoomId || isCreateSubRoomDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPreselectedRoomId(null)
+              setIsCreateSubRoomDialogOpen(false)
+            }
+          }}
+          onSuccess={() => {
+            fetchRooms()
+            setPreselectedRoomId(null)
+            setIsCreateSubRoomDialogOpen(false)
+          }}
+          establishmentId={establishmentId}
+          preselectedRoomId={preselectedRoomId}
+          userRole={effectiveUserRole}
+        />
       </ErrorBoundary>
     </div>
   )

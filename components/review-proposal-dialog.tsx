@@ -425,7 +425,7 @@ export function ReviewProposalDialog({
             </div>
           )}
 
-          {isPending && isTeacher && (
+          {isTeacher && (
             <div className="space-y-4 pt-4 border-t">
               <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg mb-4">
                 <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
