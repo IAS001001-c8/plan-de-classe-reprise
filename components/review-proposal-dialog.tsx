@@ -41,7 +41,16 @@ export function ReviewProposalDialog({
   const isTeacher = userRole === "professeur" || userRole === "teacher"
   const isPending = proposal?.status === "pending"
 
-  console.log("[v0] ReviewProposalDialog - userRole:", userRole, "isTeacher:", isTeacher, "isPending:", isPending)
+  console.log(
+    "[v0] ReviewProposalDialog - userRole:",
+    userRole,
+    "isTeacher:",
+    isTeacher,
+    "isPending:",
+    isPending,
+    "status:",
+    proposal?.status,
+  )
 
   async function handleApprove() {
     if (!proposal) return
@@ -210,6 +219,8 @@ export function ReviewProposalDialog({
     try {
       const { data: profileData } = await supabase.from("profiles").select("establishment_id").eq("id", userId).single()
 
+      console.log("[v0] Rejecting proposal with reason:", rejectionReason)
+
       const { error } = await supabase
         .from("sub_room_proposals")
         .update({
@@ -220,7 +231,12 @@ export function ReviewProposalDialog({
         })
         .eq("id", proposal.id)
 
-      if (error) throw error
+      if (error) {
+        console.error("[v0] Error rejecting proposal:", error)
+        throw error
+      }
+
+      console.log("[v0] Proposal rejected successfully")
 
       await notifyProposalStatusChange(
         proposal.id,
@@ -239,6 +255,7 @@ export function ReviewProposalDialog({
 
       onSuccess()
       onOpenChange(false)
+      setRejectionReason("")
     } catch (error: any) {
       console.error("[v0] Error rejecting proposal:", error)
       toast({
@@ -270,17 +287,24 @@ export function ReviewProposalDialog({
     try {
       const { data: profileData } = await supabase.from("profiles").select("establishment_id").eq("id", userId).single()
 
+      console.log("[v0] Returning proposal with comments:", returnComments)
+
       const { error } = await supabase
         .from("sub_room_proposals")
         .update({
-          status: "draft",
+          status: "returned",
           teacher_comments: returnComments,
           reviewed_by: userId,
           reviewed_at: new Date().toISOString(),
         })
         .eq("id", proposal.id)
 
-      if (error) throw error
+      if (error) {
+        console.error("[v0] Error returning proposal:", error)
+        throw error
+      }
+
+      console.log("[v0] Proposal returned successfully")
 
       await notifyProposalStatusChange(
         proposal.id,
@@ -337,6 +361,12 @@ export function ReviewProposalDialog({
           <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
             <XCircle className="w-3 h-3 mr-1" />
             Refusée
+          </Badge>
+        )
+      case "returned":
+        return (
+          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300">
+            Renvoyée
           </Badge>
         )
     }
@@ -415,6 +445,13 @@ export function ReviewProposalDialog({
             </div>
           )}
 
+          {proposal.status === "returned" && proposal.teacher_comments && (
+            <div className="bg-orange-50 border border-orange-200 rounded p-4">
+              <p className="font-semibold text-orange-900 mb-1">Commentaires du professeur</p>
+              <p className="text-sm text-orange-700">{proposal.teacher_comments}</p>
+            </div>
+          )}
+
           {proposal.status === "approved" && proposal.reviewed_by_profile && (
             <div className="bg-green-50 border border-green-200 rounded p-4">
               <p className="text-sm text-green-700">
@@ -425,16 +462,16 @@ export function ReviewProposalDialog({
             </div>
           )}
 
-          {isTeacher && (
+          {isTeacher && isPending && (
             <div className="space-y-4 pt-4 border-t">
               <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg mb-4">
                 <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  Actions disponibles pour cette proposition
+                  Cette proposition est en attente de validation
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="return-comments">Commentaires pour le délégué (optionnel)</Label>
+                <Label htmlFor="return-comments">Renvoyer avec commentaires</Label>
                 <Textarea
                   id="return-comments"
                   placeholder="Ex: Pouvez-vous placer les élèves turbulents plus près du tableau..."
@@ -445,7 +482,7 @@ export function ReviewProposalDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="rejection-reason">Raison du refus définitif (si refusée)</Label>
+                <Label htmlFor="rejection-reason">Refuser définitivement</Label>
                 <Textarea
                   id="rejection-reason"
                   placeholder="Ex: Le plan ne convient pas pour ce type de cours..."
@@ -481,7 +518,7 @@ export function ReviewProposalDialog({
             </div>
           )}
 
-          {!isPending && (
+          {(!isPending || !isTeacher) && (
             <div className="flex justify-end pt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Fermer

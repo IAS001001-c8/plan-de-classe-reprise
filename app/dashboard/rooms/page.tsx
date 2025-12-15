@@ -68,13 +68,15 @@ export default function RoomsPage() {
 
   return (
     <ErrorBoundary componentName="Page des salles">
-      <RoomsManagement
-        rooms={rooms}
-        establishmentId={user.establishmentId}
-        userRole={user.role}
-        userId={user.id}
-        onBack={() => router.push("/dashboard")}
-      />
+      <div className="min-h-screen">
+        <RoomsManagement
+          rooms={rooms}
+          establishmentId={user.establishmentId}
+          userRole={user.role}
+          userId={user.id}
+          onBack={() => router.push("/dashboard")}
+        />
+      </div>
     </ErrorBoundary>
   )
 }
