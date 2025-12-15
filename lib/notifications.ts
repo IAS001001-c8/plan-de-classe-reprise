@@ -241,6 +241,7 @@ export async function notifyRoomInvitation(
     type: "room_invitation",
     title: "Invitation à une salle multi-profs",
     message: `${inviterName} vous invite à rejoindre la salle "${roomName}"`,
+    sub_room_id: roomId,
     triggered_by: invitedBy,
   })
 }

@@ -687,16 +687,15 @@ export function RoomsManagement({ rooms, establishmentId, userRole, userId, onBa
                     {canModifyRooms && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                              <span className="sr-only">Menu</span>
-                            </Button>
-                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">Menu</span>
+                          </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
                           <DropdownMenuItem

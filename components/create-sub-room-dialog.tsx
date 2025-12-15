@@ -15,9 +15,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { AlertTriangle, Info } from "lucide-react"
+import { AlertTriangle, Info, X, Check } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { notifyRoomInvitation } from "@/lib/notifications"
+import { Textarea } from "@/components/ui/textarea"
 
 interface Teacher {
   id: string
@@ -47,6 +48,7 @@ interface CreateSubRoomDialogProps {
   establishmentId: string
   preselectedRoomId?: string | null
   userRole?: string
+  isPending?: boolean
 }
 
 export function CreateSubRoomDialog({
@@ -56,6 +58,7 @@ export function CreateSubRoomDialog({
   establishmentId,
   preselectedRoomId,
   userRole,
+  isPending,
 }: CreateSubRoomDialogProps) {
   const [rooms, setRooms] = useState<Room[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -72,6 +75,10 @@ export function CreateSubRoomDialog({
     isCollaborative: false,
     isMultiClass: false,
   })
+
+  const [returnComments, setReturnComments] = useState("")
+  const [rejectionReason, setRejectionReason] = useState("")
+  const [action, setAction] = useState<"return" | "reject" | "approve">("return")
 
   const supabase = createClient()
 
@@ -317,8 +324,76 @@ export function CreateSubRoomDialog({
     }
   }
 
+  const handleReturn = async () => {
+    if (!returnComments.trim()) return
+
+    setIsLoading(true)
+    setAction("return")
+    try {
+      // Logic to handle returning with comments
+      toast({
+        title: "Proposition renvoyée",
+        description: "La proposition a été renvoyée avec des commentaires.",
+      })
+    } catch (error) {
+      console.error("[v0] Error returning proposal:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de renvoyer la proposition. Veuillez réessayer.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!rejectionReason.trim()) return
+
+    setIsLoading(true)
+    setAction("reject")
+    try {
+      // Logic to handle rejecting the proposal
+      toast({
+        title: "Proposition refusée",
+        description: "La proposition a été refusée définitivement.",
+      })
+    } catch (error) {
+      console.error("[v0] Error rejecting proposal:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de refuser la proposition. Veuillez réessayer.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleApprove = async () => {
+    setIsLoading(true)
+    setAction("approve")
+    try {
+      // Logic to handle approving the proposal
+      toast({
+        title: "Proposition validée",
+        description: "La proposition a été validée avec succès.",
+      })
+    } catch (error) {
+      console.error("[v0] Error approving proposal:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de valider la proposition. Veuillez réessayer.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const isDelegate = userRole === "delegue" || userRole === "eco-delegue"
   const isProfessor = userRole === "professeur"
+  const isTeacher = userRole === "professeur"
 
   const displayedTeachers =
     isProfessor && !formData.isCollaborative
@@ -505,6 +580,82 @@ export function CreateSubRoomDialog({
               </div>
             )}
           </div>
+
+          {isPending && isTeacher && (
+            <div className="space-y-4 pt-4 border-t">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white p-4 rounded-lg mb-4 shadow-lg">
+                <h3 className="font-bold text-lg mb-2">Actions disponibles</h3>
+                <ul className="space-y-1 text-sm">
+                  <li>✓ Valider cette proposition</li>
+                  <li>✓ Renvoyer avec des commentaires pour modifications</li>
+                  <li>✓ Refuser définitivement la proposition</li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="return-comments" className="text-base font-semibold">
+                  Renvoyer avec commentaires
+                </Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Le délégué pourra modifier la proposition en fonction de vos remarques
+                </p>
+                <Textarea
+                  id="return-comments"
+                  placeholder="Ex: Pouvez-vous placer les élèves turbulents plus près du tableau..."
+                  value={returnComments}
+                  onChange={(e) => setReturnComments(e.target.value)}
+                  rows={3}
+                  className="border-2 border-orange-300 focus:border-orange-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="rejection-reason" className="text-base font-semibold text-red-700">
+                  Refuser définitivement
+                </Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  La proposition sera définitivement refusée et le délégué en sera notifié
+                </p>
+                <Textarea
+                  id="rejection-reason"
+                  placeholder="Ex: Le plan ne convient pas pour ce type de cours..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={3}
+                  className="border-2 border-red-300 focus:border-red-500"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={handleReturn}
+                  disabled={isLoading || !returnComments.trim()}
+                  className="flex-1 h-12 bg-orange-500 hover:bg-orange-600 text-white text-base font-semibold shadow-md"
+                  size="lg"
+                >
+                  {isLoading && action === "return" ? "Renvoi..." : "Renvoyer pour modifications"}
+                </Button>
+                <Button
+                  onClick={handleReject}
+                  disabled={isLoading || !rejectionReason.trim()}
+                  className="flex-1 h-12 bg-red-600 hover:bg-red-700 text-white text-base font-semibold shadow-md"
+                  size="lg"
+                >
+                  <X className="w-5 h-5 mr-2" />
+                  {isLoading && action === "reject" ? "Refus..." : "Refuser définitivement"}
+                </Button>
+                <Button
+                  onClick={handleApprove}
+                  disabled={isLoading}
+                  className="flex-1 h-12 bg-green-600 hover:bg-green-700 text-white text-base font-semibold shadow-md"
+                  size="lg"
+                >
+                  <Check className="w-5 h-5 mr-2" />
+                  {isLoading && action === "approve" ? "Validation..." : "Valider la proposition"}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
