@@ -38,8 +38,10 @@ export function ReviewProposalDialog({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
-  const isTeacher = userRole === "professeur"
+  const isTeacher = userRole === "professeur" || userRole === "teacher"
   const isPending = proposal?.status === "pending"
+
+  console.log("[v0] ReviewProposalDialog - userRole:", userRole, "isTeacher:", isTeacher, "isPending:", isPending)
 
   async function handleApprove() {
     if (!proposal) return
@@ -424,7 +426,13 @@ export function ReviewProposalDialog({
           )}
 
           {isPending && isTeacher && (
-            <div className="space-y-4 pt-4">
+            <div className="space-y-4 pt-4 border-t">
+              <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg mb-4">
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Actions disponibles pour cette proposition
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="return-comments">Commentaires pour le délégué (optionnel)</Label>
                 <Textarea

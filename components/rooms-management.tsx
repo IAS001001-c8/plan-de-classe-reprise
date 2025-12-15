@@ -678,7 +678,7 @@ export function RoomsManagement({ rooms, establishmentId, userRole, userId, onBa
           </Card>
         )}
 
-        {viewedRoom && (
+        {viewedRoom && viewedRoom.config?.columns && Array.isArray(viewedRoom.config.columns) && (
           <Card className="mb-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-emerald-200 dark:border-emerald-800 shadow-xl animate-in slide-in-from-bottom-4 duration-500">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-6">
