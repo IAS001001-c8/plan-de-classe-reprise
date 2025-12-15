@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/use-auth"
+import { ErrorBoundary } from "./error-boundary"
 import {
   ArrowLeft,
   Plus,
@@ -373,6 +374,13 @@ export function RoomsManagement({ rooms, establishmentId, userRole, userId, onBa
   }
 
   const handleViewRoom = (room: Room) => {
+    console.log("[v0] RoomsManagement - handleViewRoom called with:", {
+      roomId: room.id,
+      roomName: room.name,
+      hasConfig: !!room.config,
+      configColumns: room.config?.columns?.length,
+      fullRoom: room,
+    })
     setViewedRoom(room)
   }
 
@@ -678,34 +686,55 @@ export function RoomsManagement({ rooms, establishmentId, userRole, userId, onBa
         )}
 
         {viewedRoom && viewedRoom.config?.columns && Array.isArray(viewedRoom.config.columns) && (
-          <Card className="mb-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-emerald-200 dark:border-emerald-800 shadow-xl animate-in slide-in-from-bottom-4 duration-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{viewedRoom.name}</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Code: {viewedRoom.code}</p>
+          <ErrorBoundary
+            componentName="Visualisation de la salle"
+            fallback={
+              <Card className="mb-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+                <CardContent className="p-6">
+                  <div className="text-center">
+                    <p className="text-red-700 dark:text-red-300 mb-4">
+                      Impossible d'afficher cette salle. Les données semblent corrompues.
+                    </p>
+                    <Button onClick={() => setViewedRoom(null)} variant="outline">
+                      Fermer
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            }
+          >
+            <Card className="mb-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-emerald-200 dark:border-emerald-800 shadow-xl animate-in slide-in-from-bottom-4 duration-500">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{viewedRoom.name}</h2>
+                    <p className="text-sm text-muted-foreground mt-1">Code: {viewedRoom.code}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="border-emerald-300 hover:bg-emerald-50 dark:border-emerald-700 bg-transparent"
+                      onClick={() => handleCreateFromRoom(viewedRoom.id)}
+                    >
+                      Créer une sous-salle à partir
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        console.log("[v0] RoomsManagement - Closing room view")
+                        setViewedRoom(null)
+                      }}
+                      className="hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                    >
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="border-emerald-300 hover:bg-emerald-50 dark:border-emerald-700 bg-transparent"
-                    onClick={() => handleCreateFromRoom(viewedRoom.id)}
-                  >
-                    Créer une sous-salle à partir
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setViewedRoom(null)}
-                    className="hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-              <RoomVisualization room={viewedRoom} />
-            </CardContent>
-          </Card>
+                <RoomVisualization room={viewedRoom} />
+              </CardContent>
+            </Card>
+          </ErrorBoundary>
         )}
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
