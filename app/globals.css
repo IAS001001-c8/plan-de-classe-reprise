@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "tw-animate-css";
+/* Removed non-existent @import 'tw-animate-css' causing Tailwind error */
 
 @custom-variant dark (&:is(.dark *));
 

@@ -27,6 +27,7 @@ import { TeachersManagement } from "@/components/teachers-management"
 import { ClassesManagement } from "@/components/classes-management"
 import { SeatingPlanManagement } from "@/components/seating-plan-management"
 import { NotificationsDropdown } from "@/components/notifications-dropdown"
+import { EspaceClasseManagement } from "@/components/espace-classe-management"
 
 interface DashboardContentProps {
   user: User
@@ -36,9 +37,9 @@ interface DashboardContentProps {
 export function DashboardContent({ user, profile }: DashboardContentProps) {
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [activeSection, setActiveSection] = useState<"home" | "students" | "teachers" | "classes" | "seating-plan">(
-    "home",
-  )
+  const [activeSection, setActiveSection] = useState<
+    "home" | "students" | "teachers" | "classes" | "salles" | "seating-plan"
+  >("home")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [settingsData, setSettingsData] = useState({
     username: "",
@@ -273,7 +274,11 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
   }
 
   if (activeSection === "classes") {
-    return <ClassesManagement establishmentId={profile.establishment_id} onBack={() => setActiveSection("home")} />
+    return <ClassesManagement user={user} profile={profile} onBack={() => setActiveSection("home")} />
+  }
+
+  if (activeSection === "salles") {
+    return <EspaceClasseManagement user={user} profile={profile} onBack={() => setActiveSection("home")} />
   }
 
   if (activeSection === "seating-plan") {
@@ -332,6 +337,36 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
         >
+          {activeSection === "home" && (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <Card
+                className="cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1"
+                onClick={() => setActiveSection("salles")}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <LayoutGrid className="h-5 w-5" />
+                    Salles
+                  </CardTitle>
+                  <CardDescription>Gérer les salles de classe</CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card
+                className="cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1"
+                onClick={() => setActiveSection("classes")}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5" />
+                    Classes
+                  </CardTitle>
+                  <CardDescription>Gérer les classes et cours</CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+          )}
+
           {profile.role === "vie-scolaire" && (
             <>
               <Card
