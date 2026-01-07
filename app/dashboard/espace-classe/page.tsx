@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
 import EspaceClasseManagement from "@/components/espace-classe-management"
 
 export default async function EspaceClassePage() {
@@ -10,7 +9,7 @@ export default async function EspaceClassePage() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect("/login")
+    return <div className="p-6">Session expirée. Veuillez vous reconnecter.</div>
   }
 
   const { data: profile } = await supabase
@@ -20,7 +19,7 @@ export default async function EspaceClassePage() {
     .single()
 
   if (!profile || !profile.establishment_id) {
-    return <div>Profil non trouvé</div>
+    return <div className="p-6">Profil non trouvé</div>
   }
 
   const { data: rooms } = await supabase
