@@ -27,7 +27,6 @@ import { TeachersManagement } from "@/components/teachers-management"
 import { ClassesManagement } from "@/components/classes-management"
 import { SeatingPlanManagement } from "@/components/seating-plan-management"
 import { NotificationsDropdown } from "@/components/notifications-dropdown"
-import { EspaceClasseManagement } from "@/components/espace-classe-management"
 
 interface DashboardContentProps {
   user: User
@@ -37,23 +36,14 @@ interface DashboardContentProps {
 export function DashboardContent({ user, profile }: DashboardContentProps) {
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [activeSection, setActiveSection] = useState<
-    "home" | "students" | "teachers" | "classes" | "espace-classe" | "seating-plan"
-  >("home")
+  const [activeSection, setActiveSection] = useState<"home" | "students" | "teachers" | "classes" | "seating-plan">(
+    "home",
+  )
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [settingsData, setSettingsData] = useState({
     username: "",
     password: "",
   })
-
-  const navigationItems = [
-    { id: "home" as const, label: "Accueil", icon: LayoutGrid, href: "/dashboard" },
-    { id: "students" as const, label: "Élèves", icon: Users, href: "/dashboard/students" },
-    { id: "teachers" as const, label: "Professeurs", icon: Users, href: "/dashboard/teachers" },
-    { id: "classes" as const, label: "Classes", icon: BookOpen, href: "/dashboard/classes" },
-    { id: "espace-classe" as const, label: "Classe", icon: LayoutGrid, href: "/dashboard/espace-classe" },
-    { id: "seating-plan" as const, label: "Plans de classe", icon: LayoutGrid, href: "/dashboard/seating-plans" },
-  ]
 
   function generateStrongPassword(length = 8): string {
     const lowercase = "abcdefghijklmnopqrstuvwxyz"
@@ -286,17 +276,6 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
     return <ClassesManagement establishmentId={profile.establishment_id} onBack={() => setActiveSection("home")} />
   }
 
-  if (activeSection === "espace-classe") {
-    return (
-      <EspaceClasseManagement
-        establishmentId={profile.establishment_id}
-        userRole={profile.role}
-        userId={profile.id}
-        onBack={() => setActiveSection("home")}
-      />
-    )
-  }
-
   if (activeSection === "seating-plan") {
     return (
       <SeatingPlanManagement
@@ -416,7 +395,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardHeader className="bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-t-lg">
                   <CardTitle className="flex items-center text-xl">
                     <SettingsIcon className="mr-3 h-6 w-6" />
-                    Classe
+                    Espaces Classe
                   </CardTitle>
                   <CardDescription className="text-amber-100">Créer et configurer les salles</CardDescription>
                 </CardHeader>
@@ -434,7 +413,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardHeader className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-t-lg">
                   <CardTitle className="flex items-center text-xl">
                     <LayoutGrid className="mr-3 h-6 w-6" />
-                    Plans de classe
+                    Plan de Classe
                   </CardTitle>
                   <CardDescription className="text-indigo-100">Créer et gérer les plans de classe</CardDescription>
                 </CardHeader>
@@ -510,7 +489,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardHeader className="bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-t-lg">
                   <CardTitle className="flex items-center text-xl">
                     <SettingsIcon className="mr-3 h-6 w-6" />
-                    Classe
+                    Espaces Classe
                   </CardTitle>
                   <CardDescription className="text-amber-100">Accéder aux plans de classe</CardDescription>
                 </CardHeader>
@@ -528,7 +507,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardHeader className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-t-lg">
                   <CardTitle className="flex items-center text-xl">
                     <LayoutGrid className="mr-3 h-6 w-6" />
-                    Plans de classe
+                    Plan de Classe
                   </CardTitle>
                   <CardDescription className="text-indigo-100">Créer et gérer les plans de classe</CardDescription>
                 </CardHeader>
@@ -602,7 +581,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardHeader className="bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-t-lg">
                   <CardTitle className="flex items-center text-xl">
                     <SettingsIcon className="mr-3 h-6 w-6" />
-                    Classe
+                    Espaces Classe
                   </CardTitle>
                   <CardDescription className="text-amber-100">Voir les plans de classe</CardDescription>
                 </CardHeader>
@@ -620,7 +599,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardHeader className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-t-lg">
                   <CardTitle className="flex items-center text-xl">
                     <LayoutGrid className="mr-3 h-6 w-6" />
-                    Plans de classe
+                    Plan de Classe
                   </CardTitle>
                   <CardDescription className="text-indigo-100">Créer et gérer les plans de classe</CardDescription>
                 </CardHeader>
