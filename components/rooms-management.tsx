@@ -770,7 +770,7 @@ export function RoomsManagement({ rooms: initialRooms = [], establishmentId, use
           </DialogContent>
         </Dialog>
 
-        <Dialog open={selectedRoomIds.length > 0} onOpenChange={() => setSelectedRoomIds([])}>
+        <Dialog open={editingRoom !== null} onOpenChange={(open) => !open && setEditingRoom(null)}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Modifier la salle</DialogTitle>
@@ -877,7 +877,7 @@ export function RoomsManagement({ rooms: initialRooms = [], establishmentId, use
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setSelectedRoomIds([])}>
+              <Button variant="outline" onClick={() => setEditingRoom(null)}>
                 Annuler
               </Button>
               <Button onClick={handleEditRoom} disabled={isLoading}>
@@ -914,7 +914,8 @@ export function RoomsManagement({ rooms: initialRooms = [], establishmentId, use
           }}
           establishmentId={establishmentId}
           selectedRoom={selectedRoomForSubRoom}
-          userRole={effectiveUserRole} // Use effectiveUserRole
+          userRole={effectiveUserRole}
+          userId={effectiveUserId} // Add missing userId prop
         />
       </div>
 
