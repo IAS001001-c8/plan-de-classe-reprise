@@ -395,7 +395,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardHeader className="bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-t-lg">
                   <CardTitle className="flex items-center text-xl">
                     <SettingsIcon className="mr-3 h-6 w-6" />
-                    Espaces Classe
+                    Classe
                   </CardTitle>
                   <CardDescription className="text-amber-100">Créer et configurer les salles</CardDescription>
                 </CardHeader>
@@ -489,7 +489,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardHeader className="bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-t-lg">
                   <CardTitle className="flex items-center text-xl">
                     <SettingsIcon className="mr-3 h-6 w-6" />
-                    Espaces Classe
+                    Classe
                   </CardTitle>
                   <CardDescription className="text-amber-100">Accéder aux plans de classe</CardDescription>
                 </CardHeader>
@@ -581,13 +581,13 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardHeader className="bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-t-lg">
                   <CardTitle className="flex items-center text-xl">
                     <SettingsIcon className="mr-3 h-6 w-6" />
-                    Espaces Classe
+                    Classe
                   </CardTitle>
-                  <CardDescription className="text-amber-100">Voir les plans de classe</CardDescription>
+                  <CardDescription className="text-amber-100">Proposer des plans de classe</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-6">
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Consultez les plans de classe de votre établissement.
+                    Créez des propositions de plans de classe dans le bac à sable.
                   </p>
                 </CardContent>
               </Card>
