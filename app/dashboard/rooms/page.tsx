@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/lib/use-auth"
-import { EspaceClasseManagement } from "@/components/espace-classe-management"
+import { RoomsManagement } from "@/components/rooms-management"
 import { useRouter } from "next/navigation"
 
-export default function EspaceClassePage() {
-  const { user, isLoading } = useAuth()
+export default function RoomsPage() {
+  const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
   const [rooms, setRooms] = useState<any[]>([])
-  const [isLoadingRooms, setIsLoadingRooms] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     async function loadRooms() {
@@ -21,10 +21,10 @@ export default function EspaceClassePage() {
         .from("rooms")
         .select("*")
         .eq("establishment_id", user.establishmentId)
-        .order("created_at", { ascending: false })
+        .order("name")
 
       setRooms(roomsData || [])
-      setIsLoadingRooms(false)
+      setIsLoading(false)
     }
 
     if (user) {
@@ -32,7 +32,7 @@ export default function EspaceClassePage() {
     }
   }, [user])
 
-  if (isLoading || isLoadingRooms) {
+  if (authLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -46,11 +46,12 @@ export default function EspaceClassePage() {
   if (!user) return null
 
   return (
-    <EspaceClasseManagement
-      initialRooms={rooms}
+    <RoomsManagement
+      rooms={rooms}
+      establishmentId={user.establishmentId}
       userRole={user.role}
       userId={user.id}
-      establishmentId={user.establishmentId}
+      onBack={() => router.push("/dashboard")}
     />
   )
 }
