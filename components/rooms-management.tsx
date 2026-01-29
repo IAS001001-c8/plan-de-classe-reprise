@@ -26,6 +26,10 @@ import {
   Trash2,
 } from "lucide-react"
 import type { RoomTemplate } from "@/components/room-templates"
+import { CreateTemplateDialog } from "@/components/create-template-dialog"
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog" // Import the DeleteConfirmationDialog component
+import { TemplateSelectionDialog } from "@/components/template-selection-dialog" // Import the TemplateSelectionDialog component
+import { CreateSubRoomDialog } from "@/components/create-sub-room-dialog" // Import the CreateSubRoomDialog component
 
 interface Room {
   id: string
@@ -658,7 +662,7 @@ export function RoomsManagement({ rooms: initialRooms = [], establishmentId, use
       </div>
 
       {showCreateTemplate && effectiveUserId && establishmentId && (
-        <div
+        <CreateTemplateDialog
           open={showCreateTemplate}
           onOpenChange={setShowCreateTemplate}
           onSuccess={() => {
@@ -667,9 +671,7 @@ export function RoomsManagement({ rooms: initialRooms = [], establishmentId, use
           }}
           userId={effectiveUserId}
           establishmentId={establishmentId}
-        >
-          {/* CreateTemplateDialog component implementation */}
-        </div>
+        />
       )}
 
       {editingRoom && (
@@ -782,19 +784,17 @@ export function RoomsManagement({ rooms: initialRooms = [], establishmentId, use
       )}
 
       {showDeleteDialog && (
-        <div
+        <DeleteConfirmationDialog
           open={showDeleteDialog}
           onOpenChange={setShowDeleteDialog}
           onConfirm={() => handleDeleteRooms(selectedRoomIds)}
           itemCount={selectedRoomIds.length}
           itemType="salle"
-        >
-          {/* DeleteConfirmationDialog component implementation */}
-        </div>
+        />
       )}
 
       {showTemplates && effectiveUserId && establishmentId && (
-        <div
+        <TemplateSelectionDialog
           open={showTemplates}
           onOpenChange={setShowTemplates}
           onSelectTemplate={handleTemplateSelect}
@@ -804,13 +804,11 @@ export function RoomsManagement({ rooms: initialRooms = [], establishmentId, use
             setShowTemplates(false)
             loadRooms()
           }}
-        >
-          {/* TemplateSelectionDialog component implementation */}
-        </div>
+        />
       )}
 
       {showCreateSubRoom && establishmentId && effectiveUserId && (
-        <div
+        <CreateSubRoomDialog
           open={showCreateSubRoom}
           onOpenChange={setShowCreateSubRoom}
           onSuccess={() => {
@@ -821,12 +819,8 @@ export function RoomsManagement({ rooms: initialRooms = [], establishmentId, use
           selectedRoom={selectedRoomForSubRoom}
           userRole={effectiveUserRole}
           userId={effectiveUserId}
-        >
-          {/* CreateSubRoomDialog component implementation */}
-        </div>
+        />
       )}
-
-      <div />
     </div>
   )
 }
