@@ -12,13 +12,13 @@ export const metadata = {
   icons: {
     icon: [
       {
-        url: "/images/logo-edu-plan-remove.png",
+        url: "/images/icon.png",
         sizes: "any",
       },
     ],
     apple: [
       {
-        url: "/images/logo-edu-plan-remove.png",
+        url: "/images/icon.png",
       },
     ],
   },
